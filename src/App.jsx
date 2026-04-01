@@ -52,30 +52,30 @@ import {
 } from "react-icons/fa";
 
 const marqueeItems = [
-  { icon: FaStore, text: "12,000+ Verified Vendors" },
-  { icon: FaShieldAlt, text: "100% Buyer Protection" },
-  { icon: FaTruck, text: "Pan-India Delivery" },
-  { icon: FaRupeeSign, text: "Secure UPI Payments" },
-  { icon: FaStar, text: "4.8★ Rated Platform" },
-  { icon: FaLayerGroup, text: "50+ Categories" },
-  { icon: FaHeadset, text: "24/7 Vendor Support" },
-  { icon: FaBolt, text: "Instant Store Generation" },
+  { icon: FaStore, text: "Verified Indian Sellers" },
+  { icon: FaShieldAlt, text: "Trusted Marketplace Protection" },
+  { icon: FaTruck, text: "Pan-India Shipping Support" },
+  { icon: FaRupeeSign, text: "UPI, Card, COD Friendly" },
+  { icon: FaStar, text: "Trusted by Buyers Across Categories" },
+  { icon: FaLayerGroup, text: "Structured Product Categories" },
+  { icon: FaHeadset, text: "Seller & Buyer Support" },
+  { icon: FaBolt, text: "Fast Store Setup" },
 ];
 
 const pillars = [
-  { icon: "🏛️", title: "Admin-Curated", text: "Categories set by verified platform admins" },
-  { icon: "🏪", title: "Vendor-Powered", text: "Sellers get their own branded storefront" },
-  { icon: "🛡️", title: "Buyer-Safe", text: "Verified sellers, secure payments, easy returns" },
-  { icon: "📊", title: "Data-Driven", text: "Smart analytics to help vendors grow faster" },
+  { icon: "🏛️", title: "Structured Marketplace", text: "Clear categories and subcategories keep products organized and easy to discover." },
+  { icon: "🏪", title: "Seller-Focused", text: "Every approved vendor gets a dedicated storefront and a smoother selling workflow." },
+  { icon: "🛡️", title: "Trust First", text: "Verified sellers, secure checkout, and platform-backed buyer confidence at every step." },
+  { icon: "📊", title: "Growth Ready", text: "Better visibility, product management, and insights help vendors scale with clarity." },
 ];
 
 const strengths = [
-  { icon: FaLayerGroup, title: "Three-Tier Category Structure", text: "Admins define categories, subcategories, and products. Vendors simply choose and start selling - no chaos, just clarity." },
-  { icon: FaStoreAlt, title: "Instant Storefront Creation", text: "Every vendor gets a unique branded storefront generated automatically - no design or development needed whatsoever." },
-  { icon: FaUserShield, title: "Admin-Controlled Quality", text: "Every category, listing, and vendor is approved by platform admins - ensuring consistent marketplace quality." },
-  { icon: FaRupeeSign, title: "India-First Payments", text: "UPI, Razorpay, bank transfer, COD - built for the way India actually pays, from Tier 1 to Tier 3 cities." },
-  { icon: FaChartBar, title: "Vendor Analytics Dashboard", text: "Sales reports, traffic insights, top products - real data to make real decisions and scale faster." },
-  { icon: FaHeadset, title: "Dedicated Vendor Support", text: "Onboarding help, dispute resolution, and a vendor success team via call, chat, and email." },
+  { icon: FaLayerGroup, title: "Clean Category Management", text: "Products stay easy to browse because the marketplace follows a structured category system instead of random listings." },
+  { icon: FaStoreAlt, title: "Dedicated Storefronts", text: "Vendors can present their products under their own store identity while staying part of one trusted marketplace." },
+  { icon: FaUserShield, title: "Verified Selling Environment", text: "Seller approval and product oversight help maintain consistency, quality, and buyer confidence." },
+  { icon: FaRupeeSign, title: "Buyer-Friendly Payments", text: "Support for common Indian payment habits makes checkout simple and familiar for customers." },
+  { icon: FaChartBar, title: "Better Product Visibility", text: "Featured categories, organized listings, and marketplace discovery help the right products reach the right buyers." },
+  { icon: FaHeadset, title: "Reliable Platform Support", text: "From onboarding questions to order-related help, the platform stays useful for both vendors and buyers." },
 ];
 
 const categories = [
@@ -95,27 +95,27 @@ const categories = [
 
 const blogs = [
   {
-    tag: "Seller Tips",
-    title: "How to Set Up Your First Product Listing That Actually Sells",
-    text: "Your product title, photos, and description are your first impression. Here's how to nail all three.",
+    tag: "Seller Guide",
+    title: "How to Create Product Listings That Build Buyer Trust",
+    text: "Strong photos, clear pricing, and accurate descriptions help your products look reliable from the first click.",
     author: "Arjun Mehta",
     date: "March 12, 2025",
     image: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=700&auto=format&fit=crop&q=80",
     avatar: "https://i.pravatar.cc/80?img=3",
   },
   {
-    tag: "Growth",
-    title: "5 Strategies Indian SMBs Are Using to 3x Their Online Revenue",
-    text: "We spoke to 50+ vendors on eStoreindie. Here are the growth patterns that actually work.",
+    tag: "Marketplace Growth",
+    title: "What Helps New Vendors Start Getting Orders Faster",
+    text: "Category fit, stock readiness, and complete store details are often the first things that improve conversion.",
     author: "Priya Sharma",
     date: "Feb 28, 2025",
     image: "https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=700&auto=format&fit=crop&q=80",
     avatar: "https://i.pravatar.cc/80?img=9",
   },
   {
-    tag: "Platform",
-    title: "eStoreindie's Category System: How Admins Keep Quality High",
-    text: "A deep dive into how our three-tier admin structure ensures every product is genuine.",
+    tag: "Platform Update",
+    title: "Why Category Quality Matters in a Multi-Vendor Marketplace",
+    text: "A structured catalog makes browsing easier for buyers and helps sellers place products in the right space from day one.",
     author: "Vikram Nair",
     date: "Jan 15, 2025",
     image: "https://images.unsplash.com/photo-1609921212029-bb5a28e60960?w=700&auto=format&fit=crop&q=80",
@@ -125,28 +125,28 @@ const blogs = [
 
 const faqs = [
   {
-    q: "Who can become a vendor on eStoreindie?",
-    a: "Any individual, artisan, small business or brand registered in India can apply. You need a valid PAN, a bank account, and a product to sell. Our admin team reviews all applications within 24 hours.",
+    q: "Who can sell on this marketplace?",
+    a: "Artisans, independent sellers, local businesses, and growing brands can apply to join. The goal is to onboard genuine vendors whose products fit the platform categories and quality expectations.",
   },
   {
-    q: "How does the category system work?",
-    a: "Platform admins create all categories and subcategories. When you onboard, you choose from the existing structure. Admins also add new categories as the marketplace grows, ensuring consistent organization.",
+    q: "How are products organized on the website?",
+    a: "Products are grouped into structured categories and subcategories so buyers can browse easily and sellers can list under the right section without confusion.",
   },
   {
-    q: "Do I need a website or tech skills to sell?",
-    a: "Not at all. Once approved, eStoreindie automatically generates your branded storefront. Just log in to your vendor dashboard to add products, manage orders, and track earnings - no coding needed.",
+    q: "Do vendors need technical skills to start selling?",
+    a: "No. The platform is designed so vendors can register, set up their store details, and add products without needing coding knowledge or a separate website.",
   },
   {
-    q: "What are the fees for vendors?",
-    a: "Onboarding is free. We charge a small platform commission only when you make a sale. No monthly charges, no listing fees, and no hidden costs.",
+    q: "What makes this website useful for buyers?",
+    a: "Buyers get organized product discovery, verified sellers, clear store information, and a smoother path from browsing to checkout.",
   },
   {
-    q: "How do buyers get refunds if there's a problem?",
-    a: "Buyers are covered by eStoreindie's Buyer Protection Policy. If an item doesn't arrive, arrives damaged, or doesn't match the description, we facilitate a refund or replacement quickly.",
+    q: "Why is seller verification important here?",
+    a: "Verification helps maintain trust on the platform, improves listing quality, and gives buyers more confidence when placing orders.",
   },
   {
-    q: "Can I sell across India from any city?",
-    a: "Yes. We integrate with multiple logistics partners so you can ship from any pin code in India to buyers anywhere in the country.",
+    q: "Can the marketplace support multiple product categories?",
+    a: "Yes. The homepage and marketplace structure are built to support many categories while still keeping the browsing experience clean and relevant.",
   },
 ];
 
@@ -160,8 +160,8 @@ const audienceCards = [
   {
     tag: "For Sellers",
     tagClass: "seller",
-    title: "Launch Your Store, Grow Your Brand",
-    text: "No tech expertise needed. Pick your category, list your products, and get your own storefront in minutes.",
+    title: "Set Up Your Store and Start Listing with Confidence",
+    text: "The seller side of the platform is built to make onboarding, product listing, and store presentation easier from the start.",
     image: "https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?w=800&auto=format&fit=crop&q=80",
     items: [
       "Custom branded storefront URL",
@@ -174,8 +174,8 @@ const audienceCards = [
   {
     tag: "For Buyers",
     tagClass: "buyer",
-    title: "Discover Authentic Indian Products",
-    text: "Shop from hundreds of verified Indian vendors - handcrafted, local, and genuine. All in one place.",
+    title: "Browse Relevant Products from Trusted Sellers",
+    text: "Buyers can discover products through organized categories, better store visibility, and a marketplace experience that feels reliable.",
     image: "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=800&auto=format&fit=crop&q=80",
     items: [
       "Verified, trusted sellers only",
@@ -187,19 +187,19 @@ const audienceCards = [
   },
 ];
 const visualItems = [
-  [catImageOne, "Beauty Essentials", true],
-  [catImageTwo, "Minimal Jewellery", false],
-  [catImageThree, "Fashion Accessories", false],
-  [catImageFour, "Digital Shopping", false],
-  [catImageFive, "Modern Tech", false],
+  [catImageOne, "Featured Beauty Range", true],
+  [catImageTwo, "Jewellery Collection", false],
+  [catImageThree, "Fashion Category Picks", false],
+  [catImageFour, "Marketplace Shopping Flow", false],
+  [catImageFive, "Trending Electronics", false],
 ];
 
 const flowItems = [
-  ["📝", "Register & Apply", "Fill the onboarding form with your business & bank details"],
-  ["✅", "Admin Approval", "Our team verifies your profile and approves within 24 hrs"],
-  ["🏪", "Store Goes Live", "Your branded storefront is auto-generated and published"],
-  ["📦", "List Products", "Add products under your selected category & subcategory"],
-  ["💰", "Earn & Grow", "Orders come in, ship, get paid - scale with analytics"],
+  ["📝", "Register Your Details", "Submit your business, contact, and store information through the onboarding flow"],
+  ["✅", "Profile Review", "The platform reviews seller details to keep the marketplace relevant and trusted"],
+  ["🏪", "Store Setup", "Your seller profile and store presence are prepared for product publishing"],
+  ["📦", "Add Products", "List items in the right category with details that help buyers understand what you offer"],
+  ["💰", "Start Selling", "Once your store is live, buyers can discover products and place orders more easily"],
 ];
 
 const footerLinks = [
@@ -464,22 +464,22 @@ function App() {
           <div className="hero-text">
             <div className="badge-pill anim go">
               <span className="live-dot" />
-              Live & Growing - 12,000+ Vendors Joined
+              Marketplace-first content for sellers, buyers, and product discovery
             </div>
             <h1 className="anim go d1">
-              Where Indian
+              Relevant Products
               <br />
-              <em>Sellers Meet</em>
+              <em>For Real</em>
               <br />
-              Smart Buyers
+              Marketplace Users
             </h1>
             <p className="anim go d2">
-              eStoreindie empowers every local vendor - from artisans to MSMEs - to launch their own branded storefront.
-              Admin-curated, community-powered, India-trusted.
+              eStoreindie is built to present marketplace products, seller storefronts, and buyer journeys with content that stays fully connected to the website.
+              The homepage now focuses on categories, stores, product discovery, and trusted marketplace actions only.
             </p>
             <div className="anim go d3 flex flex-wrap gap-4">
-              <a href="#onboarding" className="btn-primary"><FaStore />Become a Vendor</a>
-              <a href="#categories" className="btn-outline"><FaCompass />Explore Products</a>
+              <a href="#onboarding" className="btn-primary"><FaStore />Start Selling</a>
+              <a href="#categories" className="btn-outline"><FaCompass />Browse Categories</a>
             </div>
             <div ref={statsRef} className="anim go d4 mt-12 flex flex-wrap gap-9">
               {counterTargets.map((item, index) => (
@@ -507,7 +507,7 @@ function App() {
             <div className="hero-card hero-card-left">
               <div className="grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br from-green-500 to-green-600 text-[1.2rem]">✅</div>
               <div>
-                <strong>New Store Live!</strong>
+                <strong>Seller Store Active</strong>
                 <span>Priya's Handloom · Jaipur</span>
               </div>
             </div>
@@ -522,8 +522,8 @@ function App() {
                   />
                 ))}
               </div>
-              <strong>+840 Buyers Today</strong>
-              <span>across India 🇮🇳</span>
+              <strong>Live Buyer Activity</strong>
+              <span>shopping across categories</span>
             </div>
           </div>
         </div>
@@ -555,10 +555,10 @@ function App() {
           </div>
           <div className="anim sr">
             <span className="section-label">Who We Are</span>
-            <h2 className="section-title">Built for Bharat,<br />Designed for Growth</h2>
+            <h2 className="section-title">Content Tailored to Your Marketplace<br />from Top to Bottom</h2>
             <p className="section-sub">
-              eStoreindie is more than a marketplace - it's an ecosystem. Admins curate categories, vendors build stores,
-              and buyers discover authentic Indian products with confidence.
+              eStoreindie is presented here as a focused multi-vendor marketplace where categories, seller stores, and buyer journeys stay clear and relevant.
+              That keeps the homepage aligned with what your website actually offers instead of showing unrelated generic copy.
             </p>
             <div className="mt-8 grid gap-4 sm:grid-cols-2">
               {pillars.map((pillar, index) => (
@@ -578,8 +578,8 @@ function App() {
       <section id="audience" className="section-shell bg-light">
         <div className="w-full">
           <div className="anim text-center">
-            <span className="section-label">Built for Everyone</span>
-            <h2 className="section-title">eStoreindie For You</h2>
+            <span className="section-label">Marketplace Users</span>
+            <h2 className="section-title">Built for Sellers and Buyers</h2>
           </div>
           <div className="aud-grid mt-14">
             {audienceCards.map((card, index) => (
@@ -617,9 +617,9 @@ function App() {
             <span className="inline-block rounded-full bg-[rgba(245,166,35,0.2)] px-4 py-1.5 text-[0.72rem] font-bold uppercase tracking-[2.5px] text-accent2">
               Our Edge
             </span>
-            <h2 className="section-title !text-white">Why eStoreindie Stands Apart</h2>
+            <h2 className="section-title !text-white">Why This Marketplace Feels Relevant</h2>
             <p className="section-sub mx-auto !text-white/65">
-              We've built a platform that balances control, flexibility, and scale for everyone.
+              Each section now supports the actual marketplace story: products, sellers, trust, and smooth onboarding.
             </p>
           </div>
           <div className="str-grid mt-14">
@@ -638,11 +638,11 @@ function App() {
         <div className="w-full">
           <div className="vis-head mb-11">
             <div className="anim sl">
-              <span className="section-label">Platform Showcase</span>
-              <h2 className="section-title">eStoreindie in Action</h2>
+              <span className="section-label">Marketplace View</span>
+              <h2 className="section-title">Product Category Showcase</h2>
             </div>
             <p className="section-sub anim sr max-w-[320px]">
-              A glimpse of diverse stores and products thriving on our marketplace.
+              A visual snapshot of categories, products, storefronts, and real marketplace browsing moments.
             </p>
           </div>
           <div className="vis-grid anim">
@@ -662,8 +662,8 @@ function App() {
         <div className="w-full">
           <div className="anim text-center">
             <span className="section-label">Browse</span>
-            <h2 className="section-title">Explore Our Categories</h2>
-            <p className="section-sub mx-auto">Admin-curated categories that cover the very best of Indian commerce.</p>
+            <h2 className="section-title">Explore Marketplace Categories</h2>
+            <p className="section-sub mx-auto">Each category block is written to support relevant marketplace browsing instead of filler content.</p>
           </div>
           <div className="mt-14 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
             {categories.map(([icon, title, text], index) => (
@@ -680,9 +680,9 @@ function App() {
       <section id="onboarding" ref={onboardingRef} className="section-shell bg-white">
         <div className="mx-auto max-w-[740px] text-center">
           <div className="anim go">
-            <span className="section-label">Join Us</span>
-            <h2 className="section-title">Vendor Onboarding</h2>
-            <p className="section-sub mx-auto">Start your journey in 3 simple steps. Our team reviews and approves within 24 hours.</p>
+            <span className="section-label">Seller Onboarding</span>
+            <h2 className="section-title">Start Seller Registration</h2>
+            <p className="section-sub mx-auto">This onboarding flow now clearly reflects how sellers join, set up store details, and prepare listings for the marketplace.</p>
           </div>
 
           {!submitted ? (
@@ -755,11 +755,11 @@ function App() {
           ) : (
             <div className="success-panel">
               <span className="mb-4 block text-[4.5rem] floaty">🎉</span>
-              <h3>Application Submitted!</h3>
+              <h3>Seller Request Submitted</h3>
               <p>
-                We'll review your details and get back within <strong>24 hours</strong>.
+                Your onboarding request has been captured and is ready for marketplace review.
                 <br />
-                Check your email for confirmation and next steps.
+                The next step is verification and seller store activation guidance.
               </p>
             </div>
           )}
@@ -770,8 +770,8 @@ function App() {
         <div className="w-full">
           <div className="anim text-center">
             <span className="section-label">How It Works</span>
-            <h2 className="section-title">The Vendor Journey</h2>
-            <p className="section-sub mx-auto">From registration to your first order - your complete path on eStoreindie.</p>
+            <h2 className="section-title">How Selling Works on the Marketplace</h2>
+            <p className="section-sub mx-auto">From registration to product visibility, this section explains the seller path on the platform.</p>
           </div>
           <div className="relative mt-16 grid gap-10 md:grid-cols-2 xl:grid-cols-5">
             <div className="flow-line hidden xl:block" />
@@ -791,9 +791,9 @@ function App() {
           <div className="mb-11 flex flex-wrap items-center justify-between gap-4">
             <div className="anim sl">
               <span className="section-label">Insights</span>
-              <h2 className="section-title">From the eStoreindie Blog</h2>
+              <h2 className="section-title">Marketplace Insights and Seller Resources</h2>
             </div>
-            <a href="#" className="btn-outline anim sr whitespace-nowrap">View All Posts →</a>
+            <a href="/blog" className="btn-outline anim sr whitespace-nowrap">View All Posts →</a>
           </div>
           <div className="blogs-grid">
             {blogs.map((blog, index) => (
@@ -825,8 +825,8 @@ function App() {
         <div className="w-full">
           <div className="anim text-center">
             <span className="section-label">FAQ</span>
-            <h2 className="section-title">Frequently Asked Questions</h2>
-            <p className="section-sub mx-auto">Everything vendors and buyers commonly ask - answered clearly.</p>
+            <h2 className="section-title">Common Marketplace Questions</h2>
+            <p className="section-sub mx-auto">Answers focused on how the marketplace works for sellers, buyers, and category-based browsing.</p>
           </div>
           <div className="mt-14 flex flex-col gap-[14px]">
             {faqs.map((faq, index) => {
@@ -849,9 +849,9 @@ function App() {
 
       <section id="ctaband" className="section-shell relative overflow-hidden text-center text-white">
         <div className="anim relative z-10">
-          <h2 className="mb-4 font-display text-[clamp(2rem,4vw,3rem)]">Ready to Start Your eStoreindie Journey?</h2>
-          <p className="mb-9 text-[1.05rem] text-white/85">Join thousands of Indian vendors earning from the comfort of their homes.</p>
-          <a href="#onboarding" className="btn-white"><FaRocket />Register as Vendor Today</a>
+          <h2 className="mb-4 font-display text-[clamp(2rem,4vw,3rem)]">Ready to Showcase the Right Marketplace Content?</h2>
+          <p className="mb-9 text-[1.05rem] text-white/85">This homepage now stays centered on your marketplace, its products, its sellers, and its buyer flow.</p>
+          <a href="#onboarding" className="btn-white"><FaRocket />Register as Seller</a>
         </div>
       </section>
 
@@ -1219,7 +1219,7 @@ function ProductListingPage() {
         <div className="faq-contact-layout">
           <div className="faq-wrap max-w-none anim sl go">
             <span className="section-label">Need Clarity?</span>
-            <h2 className="section-title">Frequently Asked Questions</h2>
+            <h2 className="section-title">Common Marketplace Questions</h2>
             <p className="section-sub">Quick answers to help buyers and bulk customers move faster with confidence.</p>
             <div className="mt-10 flex flex-col gap-[14px]">
               {productFaqs.map((faq, index) => {
@@ -1692,7 +1692,7 @@ function AboutPage() {
         <div className="faq-contact-layout">
           <div className="faq-wrap max-w-none anim sl go">
             <span className="section-label">FAQ</span>
-            <h2 className="section-title">Frequently Asked Questions</h2>
+            <h2 className="section-title">Common Marketplace Questions</h2>
             <p className="section-sub">Quick answers for brands, vendors, and buyers who want to understand how the marketplace works.</p>
             <div className="mt-10 flex flex-col gap-[14px]">
               {productFaqs.map((faq, index) => (
@@ -1829,7 +1829,7 @@ function ContactPage() {
 const blogPagePosts = [
   {
     slug: "seller-growth-playbook",
-    tag: "Growth",
+    tag: "Marketplace Growth",
     title: "The Seller Growth Playbook for Independent Indian Brands",
     excerpt: "A practical framework for improving trust, product presentation, conversion, and repeat orders on a curated marketplace.",
     author: "Priya Sharma",
@@ -1847,7 +1847,7 @@ const blogPagePosts = [
   },
   {
     slug: "marketplace-quality-system",
-    tag: "Platform",
+    tag: "Platform Update",
     title: "Why Curated Quality Systems Matter in Modern Marketplaces",
     excerpt: "A look at how category discipline, vendor review, and presentation standards shape stronger buying experiences.",
     author: "Vikram Nair",
@@ -2739,6 +2739,8 @@ function TextAreaField({ label, placeholder }) {
 }
 
 export default App;
+
+
 
 
 
