@@ -210,7 +210,6 @@ const footerLinks = [
 
 const primaryNavItems = [
   ["Home", "/"],
-  ["Products", "/products"],
   ["About", "/about"],
   ["Contact", "/contact"],
   ["Blog", "/blog"],
@@ -307,6 +306,7 @@ function App() {
   const isLoginPage = typeof window !== "undefined" && window.location.pathname.startsWith("/login");
   const isRegisterPage = typeof window !== "undefined" && window.location.pathname.startsWith("/register");
   const isProfilePage = typeof window !== "undefined" && window.location.pathname.startsWith("/profile");
+  const isVendorShopPage = typeof window !== "undefined" && window.location.pathname.startsWith("/vendor-shop");
   const statsRef = useRef(null);
   const onboardingRef = useRef(null);
 
@@ -438,6 +438,10 @@ function App() {
 
   if (isProfilePage) {
     return <ProfilePage />;
+  }
+
+  if (isVendorShopPage) {
+    return <VendorShopPage />;
   }
 
   return (
@@ -855,12 +859,12 @@ function App() {
         </div>
       </section>
 
-      <footer className="bg-primary px-[5%] pb-8 pt-20 text-white/80">
+      <footer className="border-t border-borderc bg-white/95 px-[5%] pb-8 pt-20 text-textc backdrop-blur-[16px]">
         <div className="mb-14 grid w-full gap-[52px] md:grid-cols-2 xl:grid-cols-[2fr_1fr_1fr_1fr]">
           <FooterBrand />
           {footerLinks.map(([title, items], index) => (
             <div key={title} className={`anim d${index + 1}`}>
-              <h5 className="mb-5 text-[0.78rem] font-bold uppercase tracking-[2px] text-white">{title}</h5>
+              <h5 className="mb-5 text-[0.78rem] font-bold uppercase tracking-[2px] text-primary">{title}</h5>
               <ul className="flex flex-col gap-[11px]">
                 {items.map((item) => (
                   <li key={item}><a href="#" className="footer-link">{item}</a></li>
@@ -869,9 +873,9 @@ function App() {
             </div>
           ))}
         </div>
-        <div className="flex w-full flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-7">
-          <p className="text-[0.82rem] text-white/45">© 2025 eStoreindie. All rights reserved. Made with love in India.</p>
-          <p className="text-[0.82rem] text-white/45">
+        <div className="flex w-full flex-wrap items-center justify-between gap-3 border-t border-borderc pt-7">
+          <p className="text-[0.82rem] text-muted">© 2025 eStoreindie. All rights reserved. Made with love in India.</p>
+          <p className="text-[0.82rem] text-muted">
             Designed for <a href="#" className="text-accent2 no-underline">Bharat's Entrepreneurs</a>
           </p>
         </div>
@@ -881,6 +885,115 @@ function App() {
 }
 
 const productCategories = ["All", "Handicrafts", "Fashion", "Organic", "Home Decor", "Wellness", "Electronics"];
+
+const vendorShopTabs = ["All Products", "Electronics", "Accessories", "About Store"];
+
+const vendorFilterGroups = {
+  categories: ["Audio", "Smart Devices", "Mobile Accessories", "Power Solutions", "Gaming"],
+  price: ["Under Rs. 999", "Rs. 1000 - 2499", "Rs. 2500 - 4999", "Above Rs. 5000"],
+  rating: ["4.5 & above", "4.0 & above", "3.5 & above"],
+  shipping: ["Free Delivery", "Express Dispatch", "Pan India"],
+  stock: ["In Stock", "Best Seller", "New Launch"],
+};
+
+const vendorShopProducts = [
+  {
+    id: 101,
+    title: "PulseBass Wireless Earbuds",
+    category: "Electronics",
+    filterCategory: "Audio",
+    price: "Rs. 1,899",
+    oldPrice: "Rs. 2,499",
+    rating: "4.8",
+    reviews: 148,
+    vendor: "Shree Krishna Electronics",
+    badge: "Best Seller",
+    delivery: "Free Delivery",
+    stock: "In Stock",
+    image: "https://images.unsplash.com/photo-1524678606370-a47ad25cb82a?w=900&auto=format&fit=crop&q=80",
+  },
+  {
+    id: 102,
+    title: "VoltEdge 20000mAh Power Bank",
+    category: "Accessories",
+    filterCategory: "Power Solutions",
+    price: "Rs. 2,299",
+    oldPrice: "Rs. 2,990",
+    rating: "4.7",
+    reviews: 93,
+    vendor: "Shree Krishna Electronics",
+    badge: "Fast Charge",
+    delivery: "Express Dispatch",
+    stock: "In Stock",
+    image: "https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?w=900&auto=format&fit=crop&q=80",
+  },
+  {
+    id: 103,
+    title: "NovaFit Smart Watch Series S",
+    category: "Electronics",
+    filterCategory: "Smart Devices",
+    price: "Rs. 3,499",
+    oldPrice: "Rs. 4,150",
+    rating: "4.9",
+    reviews: 211,
+    vendor: "Shree Krishna Electronics",
+    badge: "Top Rated",
+    delivery: "Pan India",
+    stock: "Best Seller",
+    image: "https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=900&auto=format&fit=crop&q=80",
+  },
+  {
+    id: 104,
+    title: "TurboCharge USB-C Adapter Kit",
+    category: "Accessories",
+    filterCategory: "Mobile Accessories",
+    price: "Rs. 799",
+    oldPrice: "Rs. 1,099",
+    rating: "4.5",
+    reviews: 76,
+    vendor: "Shree Krishna Electronics",
+    badge: "Daily Pick",
+    delivery: "Free Delivery",
+    stock: "In Stock",
+    image: "https://images.unsplash.com/photo-1583394838336-acd977736f90?w=900&auto=format&fit=crop&q=80",
+  },
+  {
+    id: 105,
+    title: "HyperPlay RGB Gaming Headset",
+    category: "Electronics",
+    filterCategory: "Gaming",
+    price: "Rs. 4,799",
+    oldPrice: "Rs. 5,690",
+    rating: "4.6",
+    reviews: 64,
+    vendor: "Shree Krishna Electronics",
+    badge: "New Launch",
+    delivery: "Express Dispatch",
+    stock: "New Launch",
+    image: "https://images.unsplash.com/photo-1599669454699-248893623440?w=900&auto=format&fit=crop&q=80",
+  },
+  {
+    id: 106,
+    title: "CrystalView 32-inch Smart Display",
+    category: "Electronics",
+    filterCategory: "Smart Devices",
+    price: "Rs. 12,999",
+    oldPrice: "Rs. 14,499",
+    rating: "4.8",
+    reviews: 57,
+    vendor: "Shree Krishna Electronics",
+    badge: "Premium",
+    delivery: "Pan India",
+    stock: "In Stock",
+    image: "https://images.unsplash.com/photo-1593784991095-a205069470b6?w=900&auto=format&fit=crop&q=80",
+  },
+];
+
+const vendorStoreFacts = [
+  { label: "Verified Vendor", value: "Top Rated" },
+  { label: "Response Time", value: "Within 20 mins" },
+  { label: "Dispatch", value: "Same day for popular items" },
+];
 
 const filterGroups = {
   categories: ["Handloom", "Organic Food", "Home Decor", "Jewellery", "Fashion", "Wellness"],
@@ -1015,6 +1128,229 @@ const productFaqs = [
     a: "Our marketplace support team can help with recommendations, custom sourcing, dispatch questions, and vendor coordination for premium orders.",
   },
 ];
+function VendorShopPage() {
+  const [activeTab, setActiveTab] = useState("All Products");
+  const [wishlist, setWishlist] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortBy, setSortBy] = useState("Trending");
+  const [selectedFilters, setSelectedFilters] = useState({
+    categories: [],
+    price: [],
+    rating: [],
+    shipping: [],
+    stock: [],
+  });
+
+  const toggleWishlist = (id) => {
+    setWishlist((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
+    );
+  };
+
+  const toggleFilter = (group, value) => {
+    setSelectedFilters((current) => ({
+      ...current,
+      [group]: current[group].includes(value)
+        ? current[group].filter((item) => item !== value)
+        : [...current[group], value],
+    }));
+  };
+
+  const visibleProducts = vendorShopProducts
+    .filter((product) => {
+      if (activeTab === "All Products" || activeTab === "About Store") return true;
+      return product.category === activeTab;
+    })
+    .filter((product) => {
+      const query = searchTerm.trim().toLowerCase();
+      if (!query) return true;
+      return [product.title, product.category, product.filterCategory, product.badge].some((field) =>
+        field.toLowerCase().includes(query),
+      );
+    })
+    .filter((product) => {
+      if (!selectedFilters.categories.length) return true;
+      return selectedFilters.categories.includes(product.filterCategory);
+    })
+    .filter((product) => {
+      if (!selectedFilters.price.length) return true;
+      const numericPrice = Number(product.price.replace(/[^\d]/g, ""));
+      return selectedFilters.price.some((range) => {
+        if (range === "Under Rs. 999") return numericPrice < 1000;
+        if (range === "Rs. 1000 - 2499") return numericPrice >= 1000 && numericPrice <= 2499;
+        if (range === "Rs. 2500 - 4999") return numericPrice >= 2500 && numericPrice <= 4999;
+        if (range === "Above Rs. 5000") return numericPrice >= 5000;
+        return true;
+      });
+    })
+    .filter((product) => {
+      if (!selectedFilters.rating.length) return true;
+      const rating = Number(product.rating);
+      return selectedFilters.rating.some((item) => rating >= Number(item.replace(/[^\d.]/g, "")));
+    })
+    .filter((product) => {
+      if (!selectedFilters.shipping.length) return true;
+      return selectedFilters.shipping.includes(product.delivery);
+    })
+    .filter((product) => {
+      if (!selectedFilters.stock.length) return true;
+      return selectedFilters.stock.some((item) => item === product.stock || item === product.badge);
+    })
+    .sort((a, b) => {
+      if (sortBy === "Newest") return b.id - a.id;
+      if (sortBy === "Top Rated") return Number(b.rating) - Number(a.rating);
+      return Number(b.reviews) - Number(a.reviews);
+    });
+
+  return (
+    <div className="bg-light text-textc">
+      <Header scrolled showUtilityLinks />
+
+      <section className="vendor-hero">
+        <div className="vendor-hero-orb vendor-hero-orb-blue" />
+        <div className="vendor-hero-orb vendor-hero-orb-orange" />
+        <div className="vendor-hero-inner">
+          <div className="vendor-store-row anim go">
+            <div className="vendor-store-mark">SK</div>
+            <div className="vendor-store-copy">
+              <h1>Shree Krishna Electronics</h1>
+              <div className="vendor-meta-row">
+                <span className="vendor-pill accent"><FaCheck />Verified Vendor</span>
+                <span className="vendor-pill blue">Top Rated</span>
+                <span className="vendor-mini-stat"><FaStar />4.8 rating</span>
+                <span className="vendor-mini-stat"><FaStore />1.2k+ orders</span>
+                <span className="vendor-mini-stat"><FaMapMarkerAlt />Jodhpur, RJ</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="vendor-tab-row anim go d2">
+            {vendorShopTabs.map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveTab(tab)}
+                className={"vendor-tab " + (activeTab === tab ? "active" : "")}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="section-shell vendor-shop-section">
+        <div className="listing-layout">
+          <aside className="filter-panel vendor-filter-panel anim sl go">
+            <div className="filter-header">
+              <div>
+                <span className="filter-label">Store Filters</span>
+                <h3>Refine Products</h3>
+              </div>
+              <FaSlidersH className="text-accent" />
+            </div>
+
+            <div className="vendor-search-wrap">
+              <FaSearch className="text-primary/60" />
+              <input
+                type="text"
+                placeholder="Search products..."
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+              />
+            </div>
+
+            <div className="vendor-fact-list">
+              {vendorStoreFacts.map((item) => (
+                <div key={item.label} className="vendor-fact-card">
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                </div>
+              ))}
+            </div>
+
+            <FilterBlock title="Category" groupKey="categories" items={vendorFilterGroups.categories} selected={selectedFilters.categories} onToggle={toggleFilter} />
+            <FilterBlock title="Price Range" groupKey="price" items={vendorFilterGroups.price} selected={selectedFilters.price} onToggle={toggleFilter} />
+            <FilterBlock title="Rating" groupKey="rating" items={vendorFilterGroups.rating} selected={selectedFilters.rating} onToggle={toggleFilter} />
+            <FilterBlock title="Shipping" groupKey="shipping" items={vendorFilterGroups.shipping} selected={selectedFilters.shipping} onToggle={toggleFilter} />
+            <FilterBlock title="Availability" groupKey="stock" items={vendorFilterGroups.stock} selected={selectedFilters.stock} onToggle={toggleFilter} />
+          </aside>
+
+          <div className="listing-main anim sr go">
+            {activeTab === "About Store" ? (
+              <div className="vendor-about-card">
+                <span className="filter-label">About Store</span>
+                <h3>Electronics picks trusted by customers across Jodhpur and beyond.</h3>
+                <p>
+                  Shree Krishna Electronics focuses on fast-moving gadgets, mobile accessories, and reliable daily-use devices.
+                  The store is known for quick dispatch, verified products, and consistent after-sale support.
+                </p>
+              </div>
+            ) : null}
+
+            <div className="listing-toolbar">
+              <div>
+                <span className="filter-label">Showing {visibleProducts.length} products</span>
+                <h3>{activeTab === "All Products" ? "Store Collection" : activeTab}</h3>
+              </div>
+              <div className="sort-wrap">
+                <span>Sort by</span>
+                {["Trending", "Newest", "Top Rated"].map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => setSortBy(option)}
+                    className={"sort-pill " + (sortBy === option ? "active" : "")}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="product-grid">
+              {visibleProducts.map((product, index) => {
+                const liked = wishlist.includes(product.id);
+                return (
+                  <article key={product.id} className={"product-card anim go d" + ((index % 4) + 1)}>
+                    <div className="product-card-media">
+                      <img src={product.image} alt={product.title} />
+                      <span className="product-badge">{product.badge}</span>
+                      <button type="button" className="wishlist-btn" onClick={() => toggleWishlist(product.id)} aria-label="Toggle wishlist">
+                        {liked ? <FaHeart className="text-accent" /> : <FaRegHeart />}
+                      </button>
+                    </div>
+                    <div className="product-card-body">
+                      <div className="product-card-topline">
+                        <span>{product.filterCategory}</span>
+                        <span>{product.delivery}</span>
+                      </div>
+                      <h4>{product.title}</h4>
+                      <p className="vendor-line">by {product.vendor}</p>
+                      <div className="rating-line">
+                        <span className="rating-pill">{product.rating} ★</span>
+                        <span>{product.reviews} reviews</span>
+                      </div>
+                      <div className="price-line">
+                        <strong>{product.price}</strong>
+                        <span>{product.oldPrice}</span>
+                      </div>
+                      <div className="card-actions">
+                        <a href="#" className="btn-primary">Add to Cart</a>
+                        <a href="/product-details" className="mini-link">View Details</a>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function ProductListingPage() {
   const [activeCategory, setActiveCategory] = useState("All");
   const [wishlist, setWishlist] = useState([]);
@@ -1263,12 +1599,12 @@ function ProductListingPage() {
         </div>
       </section>
 
-      <footer className="bg-primary px-[5%] pb-8 pt-20 text-white/80">
+      <footer className="border-t border-borderc bg-white/95 px-[5%] pb-8 pt-20 text-textc backdrop-blur-[16px]">
         <div className="mx-auto mb-14 grid max-w-screen-xl gap-[52px] md:grid-cols-2 xl:grid-cols-[2fr_1fr_1fr_1fr]">
           <FooterBrand />
           {footerLinks.map(([title, items], index) => (
             <div key={title} className={`anim d${index + 1}`}>
-              <h5 className="mb-5 text-[0.78rem] font-bold uppercase tracking-[2px] text-white">{title}</h5>
+              <h5 className="mb-5 text-[0.78rem] font-bold uppercase tracking-[2px] text-primary">{title}</h5>
               <ul className="flex flex-col gap-[11px]">
                 {items.map((item) => (
                   <li key={item}><a href="#" className="footer-link">{item}</a></li>
@@ -1277,9 +1613,9 @@ function ProductListingPage() {
             </div>
           ))}
         </div>
-        <div className="mx-auto flex max-w-screen-xl flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-7">
-          <p className="text-[0.82rem] text-white/45">© 2025 eStoreindie. All rights reserved. Made with love in India.</p>
-          <p className="text-[0.82rem] text-white/45">
+        <div className="mx-auto flex max-w-screen-xl flex-wrap items-center justify-between gap-3 border-t border-borderc pt-7">
+          <p className="text-[0.82rem] text-muted">© 2025 eStoreindie. All rights reserved. Made with love in India.</p>
+          <p className="text-[0.82rem] text-muted">
             Designed for <a href="#" className="text-accent2 no-underline">Bharat's Entrepreneurs</a>
           </p>
         </div>
@@ -1546,13 +1882,13 @@ function ProductDetailPage() {
         </div>
       </section>
 
-      <footer className="bg-primary px-[5%] pb-8 pt-20 text-white/80">
+      <footer className="border-t border-borderc bg-white/95 px-[5%] pb-8 pt-20 text-textc backdrop-blur-[16px]">
         <div className="mx-auto mb-14 grid max-w-screen-xl gap-[52px] md:grid-cols-2 xl:grid-cols-[2fr_1fr_1fr_1fr]">
           <div className="anim">
             <div className="mb-3 font-display text-[1.8rem] font-black text-white">
               eStore<span className="text-accent2">indie</span>
             </div>
-            <p className="mb-6 max-w-[270px] text-[0.87rem] leading-[1.75]">India's trusted multi-vendor marketplace - connecting local sellers with millions of buyers across the nation.</p>
+            <p className="mb-6 max-w-[270px] text-[0.87rem] leading-[1.75] text-muted">India's trusted multi-vendor marketplace - connecting local sellers with millions of buyers across the nation.</p>
             <div className="flex gap-2.5">
               {[FaInstagram, FaFacebookF, FaTwitter, FaYoutube, FaLinkedinIn].map((Icon, index) => (
                 <a key={index} href="#" className="social-link"><Icon /></a>
@@ -1561,7 +1897,7 @@ function ProductDetailPage() {
           </div>
           {footerLinks.map(([title, items], index) => (
             <div key={title} className={`anim d${index + 1}`}>
-              <h5 className="mb-5 text-[0.78rem] font-bold uppercase tracking-[2px] text-white">{title}</h5>
+              <h5 className="mb-5 text-[0.78rem] font-bold uppercase tracking-[2px] text-primary">{title}</h5>
               <ul className="flex flex-col gap-[11px]">
                 {items.map((item) => (
                   <li key={item}><a href="#" className="footer-link">{item}</a></li>
@@ -1570,9 +1906,9 @@ function ProductDetailPage() {
             </div>
           ))}
         </div>
-        <div className="mx-auto flex max-w-screen-xl flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-7">
-          <p className="text-[0.82rem] text-white/45">© 2025 eStoreindie. All rights reserved. Made with love in India.</p>
-          <p className="text-[0.82rem] text-white/45">Designed for <a href="#" className="text-accent2 no-underline">Bharat's Entrepreneurs</a></p>
+        <div className="mx-auto flex max-w-screen-xl flex-wrap items-center justify-between gap-3 border-t border-borderc pt-7">
+          <p className="text-[0.82rem] text-muted">© 2025 eStoreindie. All rights reserved. Made with love in India.</p>
+          <p className="text-[0.82rem] text-muted">Designed for <a href="#" className="text-accent2 no-underline">Bharat's Entrepreneurs</a></p>
         </div>
       </footer>
     </div>
@@ -1728,16 +2064,16 @@ function AboutPage() {
         </div>
       </section>
 
-      <footer className="bg-primary px-[5%] pb-8 pt-20 text-white/80">
+      <footer className="border-t border-borderc bg-white/95 px-[5%] pb-8 pt-20 text-textc backdrop-blur-[16px]">
         <div className="mx-auto mb-14 grid max-w-screen-xl gap-[52px] md:grid-cols-2 xl:grid-cols-[2fr_1fr_1fr_1fr]">
           <div className="anim">
             <div className="mb-3 font-display text-[1.8rem] font-black text-white">eStore<span className="text-accent2">indie</span></div>
-            <p className="mb-6 max-w-[270px] text-[0.87rem] leading-[1.75]">India's trusted multi-vendor marketplace - connecting local sellers with millions of buyers across the nation.</p>
+            <p className="mb-6 max-w-[270px] text-[0.87rem] leading-[1.75] text-muted">India's trusted multi-vendor marketplace - connecting local sellers with millions of buyers across the nation.</p>
             <div className="flex gap-2.5">{[FaInstagram, FaFacebookF, FaTwitter, FaYoutube, FaLinkedinIn].map((Icon, index) => (<a key={index} href="#" className="social-link"><Icon /></a>))}</div>
           </div>
-          {footerLinks.map(([title, items], index) => (<div key={title} className={`anim d${index + 1}`}><h5 className="mb-5 text-[0.78rem] font-bold uppercase tracking-[2px] text-white">{title}</h5><ul className="flex flex-col gap-[11px]">{items.map((item) => (<li key={item}><a href="#" className="footer-link">{item}</a></li>))}</ul></div>))}
+          {footerLinks.map(([title, items], index) => (<div key={title} className={`anim d${index + 1}`}><h5 className="mb-5 text-[0.78rem] font-bold uppercase tracking-[2px] text-primary">{title}</h5><ul className="flex flex-col gap-[11px]">{items.map((item) => (<li key={item}><a href="#" className="footer-link">{item}</a></li>))}</ul></div>))}
         </div>
-        <div className="mx-auto flex max-w-screen-xl flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-7"><p className="text-[0.82rem] text-white/45">© 2025 eStoreindie. All rights reserved. Made with love in India.</p><p className="text-[0.82rem] text-white/45">Designed for <a href="#" className="text-accent2 no-underline">Bharat's Entrepreneurs</a></p></div>
+        <div className="mx-auto flex max-w-screen-xl flex-wrap items-center justify-between gap-3 border-t border-borderc pt-7"><p className="text-[0.82rem] text-muted">© 2025 eStoreindie. All rights reserved. Made with love in India.</p><p className="text-[0.82rem] text-muted">Designed for <a href="#" className="text-accent2 no-underline">Bharat's Entrepreneurs</a></p></div>
       </footer>
     </div>
   );
@@ -1816,12 +2152,12 @@ function ContactPage() {
         </div>
       </section>
 
-      <footer className="bg-primary px-[5%] pb-8 pt-20 text-white/80">
+      <footer className="border-t border-borderc bg-white/95 px-[5%] pb-8 pt-20 text-textc backdrop-blur-[16px]">
         <div className="mx-auto mb-14 grid max-w-screen-xl gap-[52px] md:grid-cols-2 xl:grid-cols-[2fr_1fr_1fr_1fr]">
           <FooterBrand />
-          {footerLinks.map(([title, items], index) => (<div key={title} className={`anim d${index + 1}`}><h5 className="mb-5 text-[0.78rem] font-bold uppercase tracking-[2px] text-white">{title}</h5><ul className="flex flex-col gap-[11px]">{items.map((item) => (<li key={item}><a href="#" className="footer-link">{item}</a></li>))}</ul></div>))}
+          {footerLinks.map(([title, items], index) => (<div key={title} className={`anim d${index + 1}`}><h5 className="mb-5 text-[0.78rem] font-bold uppercase tracking-[2px] text-primary">{title}</h5><ul className="flex flex-col gap-[11px]">{items.map((item) => (<li key={item}><a href="#" className="footer-link">{item}</a></li>))}</ul></div>))}
         </div>
-        <div className="mx-auto flex max-w-screen-xl flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-7"><p className="text-[0.82rem] text-white/45">© 2025 eStoreindie. All rights reserved. Made with love in India.</p><p className="text-[0.82rem] text-white/45">Designed for <a href="#" className="text-accent2 no-underline">Bharat's Entrepreneurs</a></p></div>
+        <div className="mx-auto flex max-w-screen-xl flex-wrap items-center justify-between gap-3 border-t border-borderc pt-7"><p className="text-[0.82rem] text-muted">© 2025 eStoreindie. All rights reserved. Made with love in India.</p><p className="text-[0.82rem] text-muted">Designed for <a href="#" className="text-accent2 no-underline">Bharat's Entrepreneurs</a></p></div>
       </footer>
     </div>
   );
@@ -1886,7 +2222,7 @@ function FooterBrand() {
       <a href="/" className="footer-logo-link">
         <img src={siteLogo} alt="eStoreindie" className="footer-logo-img" />
       </a>
-      <p className="mb-6 max-w-[270px] text-[0.87rem] leading-[1.75]">
+      <p className="mb-6 max-w-[270px] text-[0.87rem] leading-[1.75] text-muted">
         India's trusted multi-vendor marketplace - connecting local sellers with millions of buyers across the nation.
       </p>
       <div className="flex gap-2.5">
@@ -2135,9 +2471,9 @@ function BlogPage() {
         </div>
       </section>
 
-      <footer className="bg-primary px-[5%] pb-8 pt-20 text-white/80">
-        <div className="mx-auto mb-14 grid max-w-screen-xl gap-[52px] md:grid-cols-2 xl:grid-cols-[2fr_1fr_1fr_1fr]"><FooterBrand />{footerLinks.map(([title, items], index) => (<div key={title} className={`anim d${index + 1}`}><h5 className="mb-5 text-[0.78rem] font-bold uppercase tracking-[2px] text-white">{title}</h5><ul className="flex flex-col gap-[11px]">{items.map((item) => (<li key={item}><a href="#" className="footer-link">{item}</a></li>))}</ul></div>))}</div>
-        <div className="mx-auto flex max-w-screen-xl flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-7"><p className="text-[0.82rem] text-white/45">© 2025 eStoreindie. All rights reserved. Made with love in India.</p><p className="text-[0.82rem] text-white/45">Designed for <a href="#" className="text-accent2 no-underline">Bharat's Entrepreneurs</a></p></div>
+      <footer className="border-t border-borderc bg-white/95 px-[5%] pb-8 pt-20 text-textc backdrop-blur-[16px]">
+        <div className="mx-auto mb-14 grid max-w-screen-xl gap-[52px] md:grid-cols-2 xl:grid-cols-[2fr_1fr_1fr_1fr]"><FooterBrand />{footerLinks.map(([title, items], index) => (<div key={title} className={`anim d${index + 1}`}><h5 className="mb-5 text-[0.78rem] font-bold uppercase tracking-[2px] text-primary">{title}</h5><ul className="flex flex-col gap-[11px]">{items.map((item) => (<li key={item}><a href="#" className="footer-link">{item}</a></li>))}</ul></div>))}</div>
+        <div className="mx-auto flex max-w-screen-xl flex-wrap items-center justify-between gap-3 border-t border-borderc pt-7"><p className="text-[0.82rem] text-muted">© 2025 eStoreindie. All rights reserved. Made with love in India.</p><p className="text-[0.82rem] text-muted">Designed for <a href="#" className="text-accent2 no-underline">Bharat's Entrepreneurs</a></p></div>
       </footer>
     </div>
   );
@@ -2204,9 +2540,9 @@ function BlogDetailPage() {
         </div>
       </section>
 
-      <footer className="bg-primary px-[5%] pb-8 pt-20 text-white/80">
-        <div className="mx-auto mb-14 grid max-w-screen-xl gap-[52px] md:grid-cols-2 xl:grid-cols-[2fr_1fr_1fr_1fr]"><FooterBrand />{footerLinks.map(([title, items], index) => (<div key={title} className={`anim d${index + 1}`}><h5 className="mb-5 text-[0.78rem] font-bold uppercase tracking-[2px] text-white">{title}</h5><ul className="flex flex-col gap-[11px]">{items.map((item) => (<li key={item}><a href="#" className="footer-link">{item}</a></li>))}</ul></div>))}</div>
-        <div className="mx-auto flex max-w-screen-xl flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-7"><p className="text-[0.82rem] text-white/45">© 2025 eStoreindie. All rights reserved. Made with love in India.</p><p className="text-[0.82rem] text-white/45">Designed for <a href="#" className="text-accent2 no-underline">Bharat's Entrepreneurs</a></p></div>
+      <footer className="border-t border-borderc bg-white/95 px-[5%] pb-8 pt-20 text-textc backdrop-blur-[16px]">
+        <div className="mx-auto mb-14 grid max-w-screen-xl gap-[52px] md:grid-cols-2 xl:grid-cols-[2fr_1fr_1fr_1fr]"><FooterBrand />{footerLinks.map(([title, items], index) => (<div key={title} className={`anim d${index + 1}`}><h5 className="mb-5 text-[0.78rem] font-bold uppercase tracking-[2px] text-primary">{title}</h5><ul className="flex flex-col gap-[11px]">{items.map((item) => (<li key={item}><a href="#" className="footer-link">{item}</a></li>))}</ul></div>))}</div>
+        <div className="mx-auto flex max-w-screen-xl flex-wrap items-center justify-between gap-3 border-t border-borderc pt-7"><p className="text-[0.82rem] text-muted">© 2025 eStoreindie. All rights reserved. Made with love in India.</p><p className="text-[0.82rem] text-muted">Designed for <a href="#" className="text-accent2 no-underline">Bharat's Entrepreneurs</a></p></div>
       </footer>
     </div>
   );
@@ -2739,6 +3075,9 @@ function TextAreaField({ label, placeholder }) {
 }
 
 export default App;
+
+
+
 
 
 
