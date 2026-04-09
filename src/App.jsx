@@ -211,6 +211,7 @@ const footerLinks = [
 const primaryNavItems = [
   ["Home", "/"],
   ["About", "/about"],
+  ["Vendor", "/vendor-shop"],
   ["Contact", "/contact"],
   ["Blog", "/blog"],
 ];
@@ -1204,8 +1205,6 @@ function VendorShopPage() {
 
   return (
     <div className="bg-light text-textc">
-      <Header scrolled showUtilityLinks />
-
       <section className="vendor-hero">
         <div className="vendor-hero-orb vendor-hero-orb-blue" />
         <div className="vendor-hero-orb vendor-hero-orb-orange" />
@@ -1690,9 +1689,15 @@ function ProductDetailPage() {
 
   return (
     <div className="bg-light text-textc">
-      <Header scrolled showUtilityLinks />
-
-      <section className="section-shell pt-[120px] pb-0">
+      <section className="section-shell pb-0 pt-6">
+        <div className="detail-topbar anim go">
+          <a href="/profile" className="nav-utility">Go to Profile</a>
+          <a href="/login" className="nav-utility">Login</a>
+          <a href="/register" className="nav-utility nav-utility-accent">Signup</a>
+          <a href="/cart" className="nav-utility nav-icon-btn" aria-label="Cart">
+            <FaShoppingCart />
+          </a>
+        </div>
         <div className="detail-breadcrumbs anim go">
           <a href="/">Home</a>
           <span>/</span>
@@ -1881,39 +1886,10 @@ function ProductDetailPage() {
           </div>
         </div>
       </section>
-
-      <footer className="border-t border-borderc bg-white/95 px-[5%] pb-8 pt-20 text-textc backdrop-blur-[16px]">
-        <div className="mx-auto mb-14 grid max-w-screen-xl gap-[52px] md:grid-cols-2 xl:grid-cols-[2fr_1fr_1fr_1fr]">
-          <div className="anim">
-            <div className="mb-3 font-display text-[1.8rem] font-black text-white">
-              eStore<span className="text-accent2">indie</span>
-            </div>
-            <p className="mb-6 max-w-[270px] text-[0.87rem] leading-[1.75] text-muted">India's trusted multi-vendor marketplace - connecting local sellers with millions of buyers across the nation.</p>
-            <div className="flex gap-2.5">
-              {[FaInstagram, FaFacebookF, FaTwitter, FaYoutube, FaLinkedinIn].map((Icon, index) => (
-                <a key={index} href="#" className="social-link"><Icon /></a>
-              ))}
-            </div>
-          </div>
-          {footerLinks.map(([title, items], index) => (
-            <div key={title} className={`anim d${index + 1}`}>
-              <h5 className="mb-5 text-[0.78rem] font-bold uppercase tracking-[2px] text-primary">{title}</h5>
-              <ul className="flex flex-col gap-[11px]">
-                {items.map((item) => (
-                  <li key={item}><a href="#" className="footer-link">{item}</a></li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-        <div className="mx-auto flex max-w-screen-xl flex-wrap items-center justify-between gap-3 border-t border-borderc pt-7">
-          <p className="text-[0.82rem] text-muted">© 2025 eStoreindie. All rights reserved. Made with love in India.</p>
-          <p className="text-[0.82rem] text-muted">Designed for <a href="#" className="text-accent2 no-underline">Bharat's Entrepreneurs</a></p>
-        </div>
-      </footer>
     </div>
   );
 }
+
 const aboutValues = [
   ["Built for Bharat", "We design for independent sellers, growing brands, and local businesses that want real digital momentum."],
   ["Curated with Trust", "Every experience is shaped around clarity, merchant quality, and buyer confidence."],
@@ -2258,11 +2234,50 @@ function Header({ scrolled = false, showUtilityLinks = false, showHomeCta = fals
   );
 }
 
+function InnerPageHero({ eyebrow, title, description, primaryAction, secondaryAction, tone = "warm", showTopline = true }) {
+  return (
+    <section className={`page-intro-shell ${tone}`}>
+      <div className="page-intro-card anim go">
+        {showTopline ? (
+          <div className="page-intro-topline">
+            <a href="/" className="page-intro-brand">
+              <img src={siteLogo} alt="eStoreindie" className="site-logo-img" />
+            </a>
+            <div className="page-intro-links">
+              <a href="/products">Products</a>
+              <a href="/vendor-shop">Vendor</a>
+              <a href="/contact">Support</a>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="page-intro-copy">
+          <span className="section-label">{eyebrow}</span>
+          <h1>{title}</h1>
+          <p>{description}</p>
+        </div>
+
+        <div className="page-intro-actions">
+          {primaryAction ? <a href={primaryAction.href} className="btn-primary">{primaryAction.label}</a> : null}
+          {secondaryAction ? <a href={secondaryAction.href} className="nav-utility">{secondaryAction.label}</a> : null}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 
 function ProfilePage() {
   return (
     <div className="bg-light text-textc">
-      <Header scrolled showUtilityLinks />
+      <InnerPageHero
+        eyebrow="My Profile"
+        title="Keep account details, addresses, and recent orders organised in one place."
+        description="This top section replaces the old header with a calmer account-focused entry point that still gives users quick navigation options."
+        primaryAction={{ href: "/cart", label: "View Cart" }}
+        secondaryAction={{ href: "/checkout", label: "Continue Checkout" }}
+        showTopline={false}
+      />
 
       <section className="profile-shell">
         <div className="profile-bg-orb profile-bg-orb-one" />
@@ -2563,7 +2578,14 @@ function CheckoutPage() {
 
   return (
     <div className="bg-light text-textc">
-      <Header scrolled showUtilityLinks />
+      <InnerPageHero
+        eyebrow="Secure Checkout"
+        title="Confirm address, payment, and order summary without distraction."
+        description="The page now opens with a focused checkout intro instead of the full site header so the user stays locked into completion."
+        primaryAction={{ href: "/cart", label: "Back to Cart" }}
+        secondaryAction={{ href: "/profile", label: "Go to Profile" }}
+        showTopline={false}
+      />
 
       <section className="checkout-shell">
         <div className="mx-auto max-w-[1480px]">
@@ -2714,9 +2736,16 @@ function CartPage() {
 
   return (
     <div className="bg-light text-textc">
-      <Header scrolled showUtilityLinks />
+      <InnerPageHero
+        eyebrow="Your Cart"
+        title="Review selected items, totals, and the next step before placing the order."
+        description="This top panel keeps the cart visually strong even without the main header and gives the page a clearer starting point."
+        primaryAction={{ href: "/checkout", label: "Proceed to Checkout" }}
+        secondaryAction={{ href: "/profile", label: "Go to Profile" }}
+        showTopline={false}
+      />
 
-      <section className="section-shell pt-[120px]">
+      <section className="section-shell pt-6">
         <div className="mx-auto max-w-[1480px]">
           <div className="anim go">
             <span className="section-label">Your Cart</span>
@@ -2783,7 +2812,14 @@ function LoginPage() {
 
   return (
     <div className="bg-light text-textc">
-      <Header scrolled showUtilityLinks />
+      <InnerPageHero
+        eyebrow="User Login"
+        title="Sign in quickly and return to your saved cart, addresses, and orders."
+        description="The login page now starts with a dedicated intro block that feels lighter and more premium than a repeated global header."
+        primaryAction={{ href: "/register", label: "Create Account" }}
+        secondaryAction={{ href: "/products", label: "Browse Products" }}
+        showTopline={false}
+      />
 
       <section className="register-shell">
         <div className="register-bg-orb register-bg-orb-one" />
@@ -2897,7 +2933,14 @@ function RegisterPage() {
 
   return (
     <div className="bg-light text-textc">
-      <Header scrolled showUtilityLinks />
+      <InnerPageHero
+        eyebrow="User Signup"
+        title="Create an account and make future shopping faster, easier, and more reliable."
+        description="This intro section gives the registration page a stronger first impression while keeping the form area focused and approachable."
+        primaryAction={{ href: "/login", label: "Already Have an Account?" }}
+        secondaryAction={{ href: "/products", label: "Explore Products" }}
+        showTopline={false}
+      />
 
       <section className="register-shell">
         <div className="register-bg-orb register-bg-orb-one" />
