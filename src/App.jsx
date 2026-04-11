@@ -1,5 +1,4 @@
-
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import siteLogo from "./assets/logo.png";
 import heroSectionImage from "./assets/hero-section.png";
 import whoImageOne from "./assets/who1.jpg";
@@ -50,6 +49,133 @@ import {
   FaCreditCard,
   FaEdit,
 } from "react-icons/fa";
+
+const resolveSellerApiBaseUrl = () => {
+  const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+
+  if (configuredBaseUrl) {
+    return configuredBaseUrl.replace(/\/$/, "");
+  }
+
+  if (typeof window !== "undefined") {
+    const { hostname, protocol } = window.location;
+
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return `${protocol}//${hostname}:8000/api`;
+    }
+  }
+
+  return "/api";
+};
+
+const SELLER_API_BASE_URL = resolveSellerApiBaseUrl();
+const SELLER_API_ORIGIN = SELLER_API_BASE_URL.replace(/\/api$/, "");
+const CUSTOMER_AUTH_STORAGE_KEY = "estoreindie_customer_session";
+const CUSTOMER_CART_STORAGE_KEY = "estoreindie_customer_cart";
+
+const formatCurrency = (value) =>
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(Number(value || 0));
+
+const formatLabel = (value) =>
+  String(value || "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
+const getInitials = (value) =>
+  String(value || "Vendor")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((item) => item[0]?.toUpperCase() || "")
+    .join("");
+
+const resolveStorefrontMediaUrl = (path) => {
+  if (!path) return heroSectionImage;
+  if (/^(https?:|data:)/i.test(path)) return path;
+  const normalizedPath = String(path).replace(/^\/+/, "");
+  return `${SELLER_API_ORIGIN}/${normalizedPath}`;
+};
+
+const getVendorStorefrontSlugFromPath = () => {
+  if (typeof window === "undefined") return "";
+  const [, vendorShopSegment, slugSegment = ""] = window.location.pathname.split("/");
+  return vendorShopSegment === "vendor-shop" ? decodeURIComponent(slugSegment) : "";
+};
+
+const getStoredCustomerSession = () => {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = window.localStorage.getItem(CUSTOMER_AUTH_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+const storeCustomerSession = (user) => {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(CUSTOMER_AUTH_STORAGE_KEY, JSON.stringify(user));
+};
+
+const clearCustomerSession = () => {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(CUSTOMER_AUTH_STORAGE_KEY);
+};
+
+const getStoredCartItems = () => {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const raw = window.localStorage.getItem(CUSTOMER_CART_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+const storeCartItems = (items) => {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(CUSTOMER_CART_STORAGE_KEY, JSON.stringify(items));
+};
+
+const normalizeCartItem = (item, quantity = 1) => ({
+  id: item.id ?? `${item.title}-${item.vendor}`,
+  title: item.title,
+  vendor: item.vendor || "Marketplace Seller",
+  price: item.price,
+  numericPrice: item.numericPrice ?? (Number(String(item.price || 0).replace(/[^\d.]/g, "")) || 0),
+  image: item.image || heroSectionImage,
+  meta: item.meta || item.category || item.description || "Marketplace product",
+  qty: quantity,
+});
+const sellerRegistrationInitialState = {
+  name: "",
+  phone: "",
+  email: "",
+  business_name: "",
+  address: "",
+  category_id: "",
+  subcategory_id: "",
+  store_name: "",
+  store_description: "",
+  gst_number: "",
+  pan_number: "",
+  bank_account_number: "",
+  ifsc_code: "",
+  referral_source: "",
+};
+const sellerReferralOptions = [
+  { value: "", label: "Select an option" },
+  { value: "Social Media", label: "Social Media" },
+  { value: "Friend / Referral", label: "Friend / Referral" },
+  { value: "Google Search", label: "Google Search" },
+  { value: "Advertisement", label: "Advertisement" },
+];
 
 const marqueeItems = [
   { icon: FaStore, text: "Verified Indian Sellers" },
@@ -203,9 +329,27 @@ const flowItems = [
 ];
 
 const footerLinks = [
-  ["Marketplace", ["All Categories", "New Arrivals", "Featured Stores", "Top Vendors", "Deals & Offers"]],
-  ["Vendors", ["Become a Seller", "Vendor Dashboard", "Seller Guidelines", "Commission Rates", "Vendor Support"]],
-  ["Company", ["About Us", "Blog", "Careers", "Privacy Policy", "Terms of Service"]],
+  ["Marketplace", [
+    { label: "All Categories", href: "/products" },
+    { label: "New Arrivals", href: "/products" },
+    { label: "Featured Stores", href: "/vendor-shop" },
+    { label: "Top Vendors", href: "/vendor-shop" },
+    { label: "Deals & Offers", href: "/products" },
+  ]],
+  ["Vendors", [
+    { label: "Become a Seller", href: "/#onboarding" },
+    { label: "Vendor Dashboard", href: "/vendor-shop" },
+    { label: "Seller Guidelines", href: "/terms-conditions" },
+    { label: "Commission Rates", href: "/terms-conditions" },
+    { label: "Vendor Support", href: "/contact" },
+  ]],
+  ["Company", [
+    { label: "About Us", href: "/about" },
+    { label: "Blog", href: "/blog" },
+    { label: "Privacy Policy", href: "/privacy-policy" },
+    { label: "Terms & Conditions", href: "/terms-conditions" },
+    { label: "Refund Policy", href: "/refund-policy" },
+  ]],
 ];
 
 const primaryNavItems = [
@@ -293,8 +437,18 @@ function App() {
   const [showTop, setShowTop] = useState(false);
   const [step, setStep] = useState(1);
   const [submitted, setSubmitted] = useState(false);
+  const [sellerForm, setSellerForm] = useState(sellerRegistrationInitialState);
+  const [sellerErrors, setSellerErrors] = useState({});
+  const [sellerCategories, setSellerCategories] = useState([]);
+  const [sellerOptionsLoading, setSellerOptionsLoading] = useState(false);
+  const [sellerOptionsError, setSellerOptionsError] = useState("");
+  const [submitMessage, setSubmitMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [openFaq, setOpenFaq] = useState(null);
   const [counts, setCounts] = useState([0, 0, 0]);
+  const [customerSession, setCustomerSession] = useState(() => getStoredCustomerSession());
+  const [cartItems, setCartItems] = useState(() => getStoredCartItems());
+  const [showCartLoginPrompt, setShowCartLoginPrompt] = useState(false);
   const cursorRef = useRef(null);
   const isAboutPage = typeof window !== "undefined" && window.location.pathname.startsWith("/about");
   const isContactPage = typeof window !== "undefined" && window.location.pathname.startsWith("/contact");
@@ -307,9 +461,73 @@ function App() {
   const isLoginPage = typeof window !== "undefined" && window.location.pathname.startsWith("/login");
   const isRegisterPage = typeof window !== "undefined" && window.location.pathname.startsWith("/register");
   const isProfilePage = typeof window !== "undefined" && window.location.pathname.startsWith("/profile");
+  const isTermsPage = typeof window !== "undefined" && window.location.pathname.startsWith("/terms-conditions");
+  const isPrivacyPage = typeof window !== "undefined" && window.location.pathname.startsWith("/privacy-policy");
+  const isRefundPage = typeof window !== "undefined" && window.location.pathname.startsWith("/refund-policy");
   const isVendorShopPage = typeof window !== "undefined" && window.location.pathname.startsWith("/vendor-shop");
+  const vendorStorefrontSlug = getVendorStorefrontSlugFromPath();
+  const isHomePage = !isAboutPage && !isContactPage && !isBlogDetailPage && !isBlogPage && !isProductDetailPage && !isProductsPage && !isCartPage && !isCheckoutPage && !isLoginPage && !isRegisterPage && !isProfilePage && !isTermsPage && !isPrivacyPage && !isRefundPage && !isVendorShopPage;
   const statsRef = useRef(null);
   const onboardingRef = useRef(null);
+
+  const persistCustomerSession = (user) => {
+    setCustomerSession(user);
+    storeCustomerSession(user);
+  };
+
+  const addToCart = (item, quantity = 1) => {
+    const normalized = normalizeCartItem(item, quantity);
+
+    setCartItems((current) => {
+      const next = current.some((cartItem) => String(cartItem.id) === String(normalized.id))
+        ? current.map((cartItem) =>
+            String(cartItem.id) === String(normalized.id)
+              ? { ...cartItem, qty: cartItem.qty + quantity }
+              : cartItem
+          )
+        : [...current, normalized];
+
+      storeCartItems(next);
+      return next;
+    });
+  };
+
+  const updateCartItemQuantity = (id, nextQuantity) => {
+    setCartItems((current) => {
+      const next = nextQuantity <= 0
+        ? current.filter((item) => String(item.id) !== String(id))
+        : current.map((item) =>
+            String(item.id) === String(id) ? { ...item, qty: nextQuantity } : item
+          );
+
+      storeCartItems(next);
+      return next;
+    });
+  };
+
+  const removeCartItem = (id) => {
+    setCartItems((current) => {
+      const next = current.filter((item) => String(item.id) !== String(id));
+      storeCartItems(next);
+      return next;
+    });
+  };
+
+  const openCart = () => {
+    if (!customerSession) {
+      setShowCartLoginPrompt(true);
+      return;
+    }
+
+    if (typeof window !== "undefined") {
+      window.location.assign("/cart");
+    }
+  };
+
+  const handleCartLinkClick = (event) => {
+    event.preventDefault();
+    openCart();
+  };
 
   useEffect(() => {
     const onMouseMove = (event) => {
@@ -380,10 +598,156 @@ function App() {
     observer.observe(statsRef.current);
     return () => observer.disconnect();
   }, []);
+  const selectedSellerCategory = sellerCategories.find((item) => String(item.id) === String(sellerForm.category_id));
+  const sellerCategoryOptions = [
+    { value: "", label: sellerOptionsLoading ? "Loading categories..." : "Select Category" },
+    ...sellerCategories.map((item) => ({ value: String(item.id), label: item.name })),
+  ];
+  const sellerSubcategoryOptions = [
+    {
+      value: "",
+      label: sellerForm.category_id ? "Select Sub-Category" : "Select category first",
+    },
+    ...((selectedSellerCategory?.subcategories ?? []).map((item) => ({ value: String(item.id), label: item.name }))),
+  ];
+
+  useEffect(() => {
+    if (!isHomePage) {
+      return undefined;
+    }
+
+    const controller = new AbortController();
+
+    const loadSellerOptions = async () => {
+      setSellerOptionsLoading(true);
+      setSellerOptionsError("");
+
+      try {
+        const response = await fetch(`${SELLER_API_BASE_URL}/seller-registration/options`, {
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error("Unable to load seller categories right now.");
+        }
+
+        const payload = await response.json();
+        setSellerCategories(payload.categories ?? []);
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          setSellerOptionsError(error.message || "Unable to load seller categories right now.");
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setSellerOptionsLoading(false);
+        }
+      }
+    };
+
+    loadSellerOptions();
+
+    return () => controller.abort();
+  }, [isHomePage]);
+
+  const updateSellerForm = (name, value) => {
+    setSellerForm((current) => ({
+      ...current,
+      [name]: value,
+      ...(name === "category_id" ? { subcategory_id: "" } : {}),
+    }));
+    setSellerErrors((current) => ({ ...current, [name]: "" }));
+  };
+
+  const validateSellerStep = (targetStep = step) => {
+    const nextErrors = {};
+
+    if (targetStep === 1) {
+      if (!sellerForm.name.trim()) nextErrors.name = "Full name is required.";
+      if (!sellerForm.phone.trim()) nextErrors.phone = "Mobile number is required.";
+      if (!sellerForm.email.trim()) nextErrors.email = "Email address is required.";
+      if (!sellerForm.business_name.trim()) nextErrors.business_name = "Business name is required.";
+      if (!sellerForm.address.trim()) nextErrors.address = "City and state are required.";
+    }
+
+    if (targetStep === 2) {
+      if (!sellerForm.category_id) nextErrors.category_id = "Category is required.";
+      if (!sellerForm.subcategory_id) nextErrors.subcategory_id = "Sub-category is required.";
+      if (!sellerForm.store_name.trim()) nextErrors.store_name = "Store name is required.";
+      if (!sellerForm.store_description.trim()) nextErrors.store_description = "Store description is required.";
+    }
+
+    if (targetStep === 3) {
+      if (!sellerForm.pan_number.trim()) nextErrors.pan_number = "PAN number is required.";
+      if (!sellerForm.bank_account_number.trim()) nextErrors.bank_account_number = "Bank account number is required.";
+      if (!sellerForm.ifsc_code.trim()) nextErrors.ifsc_code = "IFSC code is required.";
+    }
+
+    setSellerErrors((current) => ({ ...current, ...nextErrors }));
+    return Object.keys(nextErrors).length === 0;
+  };
 
   const goStep = (nextStep) => {
+    if (nextStep > step && !validateSellerStep(step)) {
+      return;
+    }
+
     setStep(nextStep);
     onboardingRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const handleSellerSubmit = async () => {
+    if (!validateSellerStep(3)) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmitMessage("");
+
+    try {
+      const response = await fetch(`${SELLER_API_BASE_URL}/seller-registration`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify(sellerForm),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        if (response.status === 422 && payload.errors) {
+          const normalizedErrors = Object.fromEntries(
+            Object.entries(payload.errors).map(([field, messages]) => [field, messages[0]])
+          );
+          setSellerErrors(normalizedErrors);
+          setSubmitMessage(payload.message || "Please fix the highlighted fields.");
+          return;
+        }
+
+        throw new Error(payload.message || "Unable to submit seller registration right now.");
+      }
+
+      const storefrontUrl = payload.storefront_url || (payload.vendor?.slug ? `/vendor-shop/${payload.vendor.slug}` : "");
+
+      setSubmitted(true);
+      setSellerErrors({});
+      setSubmitMessage(
+        storefrontUrl
+          ? `${payload.message || "Seller registration submitted successfully."} Opening your storefront...`
+          : (payload.message || "Seller registration submitted successfully.")
+      );
+
+      if (storefrontUrl && typeof window !== "undefined") {
+        window.setTimeout(() => {
+          window.location.assign(storefrontUrl);
+        }, 700);
+      }
+    } catch (error) {
+      setSubmitMessage(error.message || "Unable to submit seller registration right now.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const createRipple = (event) => {
@@ -398,35 +762,40 @@ function App() {
   };
 
   if (isAboutPage) {
-    return <AboutPage />;
+    return <AboutPage onCartClick={handleCartLinkClick} cartCount={cartItems.reduce((sum, item) => sum + item.qty, 0)} />;
   }
 
   if (isContactPage) {
-    return <ContactPage />;
+    return <ContactPage onCartClick={handleCartLinkClick} cartCount={cartItems.reduce((sum, item) => sum + item.qty, 0)} />;
   }
 
   if (isBlogDetailPage) {
-    return <BlogDetailPage />;
+    return <BlogDetailPage onCartClick={handleCartLinkClick} cartCount={cartItems.reduce((sum, item) => sum + item.qty, 0)} />;
   }
 
   if (isBlogPage) {
-    return <BlogPage />;
+    return <BlogPage onCartClick={handleCartLinkClick} cartCount={cartItems.reduce((sum, item) => sum + item.qty, 0)} />;
   }
 
   if (isProductDetailPage) {
-    return <ProductDetailPage />;
+    return <ProductDetailPage onAddToCart={addToCart} onCartClick={handleCartLinkClick} />;
   }
 
   if (isProductsPage) {
-    return <ProductListingPage />;
+    return <ProductListingPage onAddToCart={addToCart} onCartClick={handleCartLinkClick} cartCount={cartItems.reduce((sum, item) => sum + item.qty, 0)} />;
   }
 
   if (isCartPage) {
-    return <CartPage />;
+    return (
+      <>
+        {!customerSession ? <CartLoginPrompt onClose={() => window.location.assign("/products")} /> : null}
+        <CartPage cartItems={cartItems} onCartClick={handleCartLinkClick} onUpdateQty={updateCartItemQuantity} onRemoveItem={removeCartItem} />
+      </>
+    );
   }
 
   if (isCheckoutPage) {
-    return <CheckoutPage />;
+    return <CheckoutPage cartItems={cartItems} onCartClick={handleCartLinkClick} />;
   }
 
   if (isLoginPage) {
@@ -441,12 +810,29 @@ function App() {
     return <ProfilePage />;
   }
 
+  if (isTermsPage) {
+    return <PolicyPage policy={policyPageContent["/terms-conditions"]} />;
+  }
+
+  if (isPrivacyPage) {
+    return <PolicyPage policy={policyPageContent["/privacy-policy"]} />;
+  }
+
+  if (isRefundPage) {
+    return <PolicyPage policy={policyPageContent["/refund-policy"]} />;
+  }
+
   if (isVendorShopPage) {
-    return <VendorShopPage />;
+    return <VendorShopPage storefrontSlug={vendorStorefrontSlug} onAddToCart={addToCart} />;
   }
 
   return (
     <div className="bg-light text-textc">
+      {showCartLoginPrompt ? (
+        <CartLoginPrompt
+          onClose={() => setShowCartLoginPrompt(false)}
+        />
+      ) : null}
       <div ref={cursorRef} className="cursor-glow hidden md:block" />
 
       <button
@@ -458,7 +844,12 @@ function App() {
         <FaArrowUp />
       </button>
 
-      <Header scrolled={isScrolled} showHomeCta />
+      <Header
+        scrolled={isScrolled}
+        showHomeCta
+        cartCount={cartItems.reduce((sum, item) => sum + item.qty, 0)}
+        onCartClick={handleCartLinkClick}
+      />
 
       <section id="hero" className="section-shell relative flex min-h-screen items-center overflow-hidden bg-white pt-[110px]">
         <div className="hero-grad" />
@@ -681,7 +1072,6 @@ function App() {
           </div>
         </div>
       </section>
-
       <section id="onboarding" ref={onboardingRef} className="section-shell bg-white">
         <div className="mx-auto max-w-[740px] text-center">
           <div className="anim go">
@@ -704,18 +1094,21 @@ function App() {
                 ))}
               </div>
 
+              {submitMessage ? <p className="mt-4 text-sm font-medium text-[#d64545]">{submitMessage}</p> : null}
+              {sellerOptionsError ? <p className="mt-3 text-sm font-medium text-[#d64545]">{sellerOptionsError}</p> : null}
+
               <div className="anim text-left">
                 {step === 1 ? (
                   <div className="form-panel">
                     <div className="form-row">
-                      <Field label="Full Name *" placeholder="Rajesh Kumar" />
-                      <Field label="Mobile Number *" placeholder="+91 98765 43210" />
+                      <Field label="Full Name *" name="name" placeholder="Rajesh Kumar" value={sellerForm.name} onChange={updateSellerForm} error={sellerErrors.name} />
+                      <Field label="Mobile Number *" name="phone" placeholder="+91 98765 43210" value={sellerForm.phone} onChange={updateSellerForm} error={sellerErrors.phone} />
                     </div>
                     <div className="form-row">
-                      <Field label="Email Address *" placeholder="you@example.com" />
-                      <Field label="Business Name *" placeholder="Rajesh Handlooms" />
+                      <Field label="Email Address *" name="email" type="email" placeholder="you@example.com" value={sellerForm.email} onChange={updateSellerForm} error={sellerErrors.email} />
+                      <Field label="Business Name *" name="business_name" placeholder="Rajesh Handlooms" value={sellerForm.business_name} onChange={updateSellerForm} error={sellerErrors.business_name} />
                     </div>
-                    <Field label="City & State *" placeholder="Jaipur, Rajasthan" />
+                    <Field label="City & State *" name="address" placeholder="Jaipur, Rajasthan" value={sellerForm.address} onChange={updateSellerForm} error={sellerErrors.address} />
                     <div className="mt-7 flex justify-between gap-4">
                       <div />
                       <button type="button" className="btn-next" onClick={() => goStep(2)}>Next: Store Setup →</button>
@@ -726,11 +1119,11 @@ function App() {
                 {step === 2 ? (
                   <div className="form-panel">
                     <div className="form-row">
-                      <SelectField label="Category *" options={["Select Category", "Fashion & Apparel", "Handicrafts", "Organic Food", "Electronics", "Home & Garden"]} />
-                      <SelectField label="Sub-Category *" options={["Select Sub-Category", "Sarees", "Kurtis", "Handloom", "Jewellery"]} />
+                      <SelectField label="Category *" name="category_id" value={sellerForm.category_id} options={sellerCategoryOptions} onChange={updateSellerForm} error={sellerErrors.category_id} disabled={sellerOptionsLoading} />
+                      <SelectField label="Sub-Category *" name="subcategory_id" value={sellerForm.subcategory_id} options={sellerSubcategoryOptions} onChange={updateSellerForm} error={sellerErrors.subcategory_id} disabled={!sellerForm.category_id || sellerOptionsLoading} />
                     </div>
-                    <Field label="Store Name *" placeholder="My Store Name" />
-                    <TextAreaField label="Store Description *" placeholder="Tell buyers what makes your store unique..." />
+                    <Field label="Store Name *" name="store_name" placeholder="My Store Name" value={sellerForm.store_name} onChange={updateSellerForm} error={sellerErrors.store_name} />
+                    <TextAreaField label="Store Description *" name="store_description" placeholder="Tell buyers what makes your store unique..." value={sellerForm.store_description} onChange={updateSellerForm} error={sellerErrors.store_description} />
                     <div className="mt-7 flex justify-between gap-4">
                       <button type="button" className="btn-back" onClick={() => goStep(1)}>← Back</button>
                       <button type="button" className="btn-next" onClick={() => goStep(3)}>Next: Documents →</button>
@@ -741,17 +1134,17 @@ function App() {
                 {step === 3 ? (
                   <div className="form-panel">
                     <div className="form-row">
-                      <Field label="GST Number" placeholder="22AAAAA0000A1Z5" />
-                      <Field label="PAN Number *" placeholder="ABCDE1234F" />
+                      <Field label="GST Number" name="gst_number" placeholder="22AAAAA0000A1Z5" value={sellerForm.gst_number} onChange={updateSellerForm} error={sellerErrors.gst_number} />
+                      <Field label="PAN Number *" name="pan_number" placeholder="ABCDE1234F" value={sellerForm.pan_number} onChange={updateSellerForm} error={sellerErrors.pan_number} />
                     </div>
                     <div className="form-row">
-                      <Field label="Bank Account Number *" placeholder="Account Number" />
-                      <Field label="IFSC Code *" placeholder="SBIN0001234" />
+                      <Field label="Bank Account Number *" name="bank_account_number" placeholder="Account Number" value={sellerForm.bank_account_number} onChange={updateSellerForm} error={sellerErrors.bank_account_number} />
+                      <Field label="IFSC Code *" name="ifsc_code" placeholder="SBIN0001234" value={sellerForm.ifsc_code} onChange={updateSellerForm} error={sellerErrors.ifsc_code} />
                     </div>
-                    <SelectField label="How did you hear about us?" options={["Select an option", "Social Media", "Friend / Referral", "Google Search", "Advertisement"]} />
+                    <SelectField label="How did you hear about us?" name="referral_source" value={sellerForm.referral_source} options={sellerReferralOptions} onChange={updateSellerForm} error={sellerErrors.referral_source} />
                     <div className="mt-7 flex justify-between gap-4">
                       <button type="button" className="btn-back" onClick={() => goStep(2)}>← Back</button>
-                      <button type="button" className="btn-next" onClick={() => setSubmitted(true)}>Submit Application ✓</button>
+                      <button type="button" className="btn-next" onClick={handleSellerSubmit} disabled={isSubmitting}>{isSubmitting ? "Submitting..." : "Submit Application ✓"}</button>
                     </div>
                   </div>
                 ) : null}
@@ -762,9 +1155,9 @@ function App() {
               <span className="mb-4 block text-[4.5rem] floaty">🎉</span>
               <h3>Seller Request Submitted</h3>
               <p>
-                Your onboarding request has been captured and is ready for marketplace review.
+                {submitMessage || "Your onboarding request has been captured and is ready for marketplace review."}
                 <br />
-                The next step is verification and seller store activation guidance.
+                The next step is verification and seller store activation guidance for {sellerForm.store_name || "your store"}.
               </p>
             </div>
           )}
@@ -867,8 +1260,8 @@ function App() {
             <div key={title} className={`anim d${index + 1}`}>
               <h5 className="mb-5 text-[0.78rem] font-bold uppercase tracking-[2px] text-primary">{title}</h5>
               <ul className="flex flex-col gap-[11px]">
-                {items.map((item) => (
-                  <li key={item}><a href="#" className="footer-link">{item}</a></li>
+                {items.map(({ label, href }) => (
+                  <li key={label}><a href={href} className="footer-link">{label}</a></li>
                 ))}
               </ul>
             </div>
@@ -886,115 +1279,6 @@ function App() {
 }
 
 const productCategories = ["All", "Handicrafts", "Fashion", "Organic", "Home Decor", "Wellness", "Electronics"];
-
-const vendorShopTabs = ["All Products", "Electronics", "Accessories", "About Store"];
-
-const vendorFilterGroups = {
-  categories: ["Audio", "Smart Devices", "Mobile Accessories", "Power Solutions", "Gaming"],
-  price: ["Under Rs. 999", "Rs. 1000 - 2499", "Rs. 2500 - 4999", "Above Rs. 5000"],
-  rating: ["4.5 & above", "4.0 & above", "3.5 & above"],
-  shipping: ["Free Delivery", "Express Dispatch", "Pan India"],
-  stock: ["In Stock", "Best Seller", "New Launch"],
-};
-
-const vendorShopProducts = [
-  {
-    id: 101,
-    title: "PulseBass Wireless Earbuds",
-    category: "Electronics",
-    filterCategory: "Audio",
-    price: "Rs. 1,899",
-    oldPrice: "Rs. 2,499",
-    rating: "4.8",
-    reviews: 148,
-    vendor: "Shree Krishna Electronics",
-    badge: "Best Seller",
-    delivery: "Free Delivery",
-    stock: "In Stock",
-    image: "https://images.unsplash.com/photo-1524678606370-a47ad25cb82a?w=900&auto=format&fit=crop&q=80",
-  },
-  {
-    id: 102,
-    title: "VoltEdge 20000mAh Power Bank",
-    category: "Accessories",
-    filterCategory: "Power Solutions",
-    price: "Rs. 2,299",
-    oldPrice: "Rs. 2,990",
-    rating: "4.7",
-    reviews: 93,
-    vendor: "Shree Krishna Electronics",
-    badge: "Fast Charge",
-    delivery: "Express Dispatch",
-    stock: "In Stock",
-    image: "https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?w=900&auto=format&fit=crop&q=80",
-  },
-  {
-    id: 103,
-    title: "NovaFit Smart Watch Series S",
-    category: "Electronics",
-    filterCategory: "Smart Devices",
-    price: "Rs. 3,499",
-    oldPrice: "Rs. 4,150",
-    rating: "4.9",
-    reviews: 211,
-    vendor: "Shree Krishna Electronics",
-    badge: "Top Rated",
-    delivery: "Pan India",
-    stock: "Best Seller",
-    image: "https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=900&auto=format&fit=crop&q=80",
-  },
-  {
-    id: 104,
-    title: "TurboCharge USB-C Adapter Kit",
-    category: "Accessories",
-    filterCategory: "Mobile Accessories",
-    price: "Rs. 799",
-    oldPrice: "Rs. 1,099",
-    rating: "4.5",
-    reviews: 76,
-    vendor: "Shree Krishna Electronics",
-    badge: "Daily Pick",
-    delivery: "Free Delivery",
-    stock: "In Stock",
-    image: "https://images.unsplash.com/photo-1583394838336-acd977736f90?w=900&auto=format&fit=crop&q=80",
-  },
-  {
-    id: 105,
-    title: "HyperPlay RGB Gaming Headset",
-    category: "Electronics",
-    filterCategory: "Gaming",
-    price: "Rs. 4,799",
-    oldPrice: "Rs. 5,690",
-    rating: "4.6",
-    reviews: 64,
-    vendor: "Shree Krishna Electronics",
-    badge: "New Launch",
-    delivery: "Express Dispatch",
-    stock: "New Launch",
-    image: "https://images.unsplash.com/photo-1599669454699-248893623440?w=900&auto=format&fit=crop&q=80",
-  },
-  {
-    id: 106,
-    title: "CrystalView 32-inch Smart Display",
-    category: "Electronics",
-    filterCategory: "Smart Devices",
-    price: "Rs. 12,999",
-    oldPrice: "Rs. 14,499",
-    rating: "4.8",
-    reviews: 57,
-    vendor: "Shree Krishna Electronics",
-    badge: "Premium",
-    delivery: "Pan India",
-    stock: "In Stock",
-    image: "https://images.unsplash.com/photo-1593784991095-a205069470b6?w=900&auto=format&fit=crop&q=80",
-  },
-];
-
-const vendorStoreFacts = [
-  { label: "Verified Vendor", value: "Top Rated" },
-  { label: "Response Time", value: "Within 20 mins" },
-  { label: "Dispatch", value: "Same day for popular items" },
-];
 
 const filterGroups = {
   categories: ["Handloom", "Organic Food", "Home Decor", "Jewellery", "Fashion", "Wellness"],
@@ -1129,11 +1413,14 @@ const productFaqs = [
     a: "Our marketplace support team can help with recommendations, custom sourcing, dispatch questions, and vendor coordination for premium orders.",
   },
 ];
-function VendorShopPage() {
+function VendorShopPage({ storefrontSlug, onAddToCart }) {
   const [activeTab, setActiveTab] = useState("All Products");
   const [wishlist, setWishlist] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("Trending");
+  const [storefront, setStorefront] = useState(null);
+  const [storefrontLoading, setStorefrontLoading] = useState(true);
+  const [storefrontError, setStorefrontError] = useState("");
   const [selectedFilters, setSelectedFilters] = useState({
     categories: [],
     price: [],
@@ -1141,6 +1428,63 @@ function VendorShopPage() {
     shipping: [],
     stock: [],
   });
+
+  useEffect(() => {
+    if (!storefrontSlug) {
+      setStorefrontLoading(false);
+      setStorefrontError("This vendor storefront link is incomplete.");
+      return undefined;
+    }
+
+    const controller = new AbortController();
+
+    const loadStorefront = async () => {
+      setStorefrontLoading(true);
+      setStorefrontError("");
+
+      try {
+        const response = await fetch(`${SELLER_API_BASE_URL}/vendor-storefront/${storefrontSlug}`, {
+          signal: controller.signal,
+          headers: {
+            Accept: "application/json",
+          },
+        });
+
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(payload.message || "Unable to load this vendor storefront right now.");
+        }
+
+        setStorefront(payload);
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          setStorefrontError(error.message || "Unable to load this vendor storefront right now.");
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setStorefrontLoading(false);
+        }
+      }
+    };
+
+    loadStorefront();
+
+    return () => controller.abort();
+  }, [storefrontSlug]);
+
+  useEffect(() => {
+    setActiveTab("All Products");
+    setSelectedFilters({
+      categories: [],
+      price: [],
+      rating: [],
+      shipping: [],
+      stock: [],
+    });
+    setSearchTerm("");
+    setSortBy("Trending");
+  }, [storefrontSlug, storefront]);
 
   const toggleWishlist = (id) => {
     setWishlist((current) =>
@@ -1157,15 +1501,67 @@ function VendorShopPage() {
     }));
   };
 
-  const visibleProducts = vendorShopProducts
+  const vendor = storefront?.vendor;
+  const vendorCategoryName = vendor?.category?.name || storefront?.stats?.category_name || "Category";
+  const vendorSubcategoryName = vendor?.subcategory?.name || storefront?.stats?.subcategory_name || "";
+  const vendorDisplayName = vendor?.store_name || vendor?.business_name || vendor?.name || "Vendor Store";
+  const vendorTabs = Array.from(
+    new Set(["All Products", vendorCategoryName, vendorSubcategoryName, "About Store"].filter(Boolean))
+  );
+  const vendorFilterGroups = {
+    categories: Array.from(
+      new Set(
+        (storefront?.products ?? [])
+          .map((product) => product.subcategory?.name || product.category?.name)
+          .filter(Boolean)
+      )
+    ),
+    price: ["Under Rs. 999", "Rs. 1000 - 2499", "Rs. 2500 - 4999", "Above Rs. 5000"],
+    rating: ["4.5 & above", "4.0 & above", "3.5 & above"],
+    shipping: ["Free Delivery", "Express Dispatch", "Pan India"],
+    stock: ["In Stock", "Featured", "Low Stock"],
+  };
+  const vendorStoreFacts = [
+    { label: "Status", value: formatLabel(vendor?.status || "pending") },
+    { label: "Category", value: vendorCategoryName },
+    { label: "Sub-category", value: vendorSubcategoryName || "General Catalog" },
+    { label: "Joined", value: vendor?.joined_at ? new Date(vendor.joined_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "Just now" },
+  ];
+  const storefrontProducts = (storefront?.products ?? []).map((product, index) => {
+    const currentPrice = Number(product.sale_price ?? product.price ?? 0);
+    const originalPrice = Number(product.price ?? currentPrice);
+    const inStock = Number(product.stock || 0) > 0;
+    const derivedRating = (4.4 + ((index % 5) * 0.1) + (product.is_featured ? 0.2 : 0)).toFixed(1);
+
+    return {
+      id: product.id,
+      title: product.name,
+      category: product.category?.name || vendorCategoryName,
+      filterCategory: product.subcategory?.name || product.category?.name || "Catalog",
+      price: formatCurrency(currentPrice),
+      oldPrice: originalPrice > currentPrice ? formatCurrency(originalPrice) : "",
+      rating: derivedRating,
+      reviews: 24 + (index * 11),
+      vendor: vendorDisplayName,
+      badge: product.is_featured ? "Featured" : (inStock ? "Ready to Ship" : "Sold Out"),
+      delivery: inStock && Number(product.stock || 0) > 10 ? "Express Dispatch" : (inStock ? "Pan India" : "Free Delivery"),
+      stock: inStock ? (Number(product.stock || 0) <= 5 ? "Low Stock" : "In Stock") : "Sold Out",
+      image: resolveStorefrontMediaUrl(product.image_path),
+      description: product.short_description || `${product.name} from ${vendorDisplayName}.`,
+      rawPrice: currentPrice,
+      rawRating: Number(derivedRating),
+    };
+  });
+
+  const visibleProducts = storefrontProducts
     .filter((product) => {
       if (activeTab === "All Products" || activeTab === "About Store") return true;
-      return product.category === activeTab;
+      return product.category === activeTab || product.filterCategory === activeTab;
     })
     .filter((product) => {
       const query = searchTerm.trim().toLowerCase();
       if (!query) return true;
-      return [product.title, product.category, product.filterCategory, product.badge].some((field) =>
+      return [product.title, product.category, product.filterCategory, product.badge, product.description].some((field) =>
         field.toLowerCase().includes(query),
       );
     })
@@ -1175,7 +1571,7 @@ function VendorShopPage() {
     })
     .filter((product) => {
       if (!selectedFilters.price.length) return true;
-      const numericPrice = Number(product.price.replace(/[^\d]/g, ""));
+      const numericPrice = product.rawPrice;
       return selectedFilters.price.some((range) => {
         if (range === "Under Rs. 999") return numericPrice < 1000;
         if (range === "Rs. 1000 - 2499") return numericPrice >= 1000 && numericPrice <= 2499;
@@ -1186,7 +1582,7 @@ function VendorShopPage() {
     })
     .filter((product) => {
       if (!selectedFilters.rating.length) return true;
-      const rating = Number(product.rating);
+      const rating = product.rawRating;
       return selectedFilters.rating.some((item) => rating >= Number(item.replace(/[^\d.]/g, "")));
     })
     .filter((product) => {
@@ -1199,9 +1595,48 @@ function VendorShopPage() {
     })
     .sort((a, b) => {
       if (sortBy === "Newest") return b.id - a.id;
-      if (sortBy === "Top Rated") return Number(b.rating) - Number(a.rating);
+      if (sortBy === "Top Rated") return b.rawRating - a.rawRating;
       return Number(b.reviews) - Number(a.reviews);
     });
+
+  if (storefrontLoading) {
+    return (
+      <div className="bg-light text-textc">
+        <section className="vendor-hero">
+          <div className="vendor-hero-orb vendor-hero-orb-blue" />
+          <div className="vendor-hero-orb vendor-hero-orb-orange" />
+          <div className="vendor-hero-inner">
+            <div className="vendor-store-row anim go">
+              <div className="vendor-store-mark">..</div>
+              <div className="vendor-store-copy">
+                <h1>Loading storefront...</h1>
+                <div className="vendor-meta-row">
+                  <span className="vendor-mini-stat"><FaStore />Preparing vendor page</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  if (storefrontError || !vendor) {
+    return (
+      <div className="bg-light text-textc">
+        <section className="section-shell pt-[140px]">
+          <div className="vendor-about-card max-w-[900px]">
+            <span className="filter-label">Storefront unavailable</span>
+            <h3>We could not open this vendor shop.</h3>
+            <p>{storefrontError || "This vendor storefront is not available right now."}</p>
+            <div className="card-actions mt-6">
+              <a href="/" className="btn-primary">Back to Home</a>
+            </div>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-light text-textc">
@@ -1210,21 +1645,21 @@ function VendorShopPage() {
         <div className="vendor-hero-orb vendor-hero-orb-orange" />
         <div className="vendor-hero-inner">
           <div className="vendor-store-row anim go">
-            <div className="vendor-store-mark">SK</div>
+            <div className="vendor-store-mark">{getInitials(vendorDisplayName)}</div>
             <div className="vendor-store-copy">
-              <h1>Shree Krishna Electronics</h1>
+              <h1>{vendorDisplayName}</h1>
               <div className="vendor-meta-row">
-                <span className="vendor-pill accent"><FaCheck />Verified Vendor</span>
-                <span className="vendor-pill blue">Top Rated</span>
-                <span className="vendor-mini-stat"><FaStar />4.8 rating</span>
-                <span className="vendor-mini-stat"><FaStore />1.2k+ orders</span>
-                <span className="vendor-mini-stat"><FaMapMarkerAlt />Jodhpur, RJ</span>
+                <span className="vendor-pill accent"><FaCheck />{formatLabel(vendor.status || "pending")} Vendor</span>
+                <span className="vendor-pill blue">{vendorCategoryName}</span>
+                {vendorSubcategoryName ? <span className="vendor-mini-stat"><FaStar />{vendorSubcategoryName}</span> : null}
+                <span className="vendor-mini-stat"><FaStore />{storefront?.stats?.product_count || 0} products</span>
+                <span className="vendor-mini-stat"><FaMapMarkerAlt />{vendor.address || "India"}</span>
               </div>
             </div>
           </div>
 
           <div className="vendor-tab-row anim go d2">
-            {vendorShopTabs.map((tab) => (
+            {vendorTabs.map((tab) => (
               <button
                 key={tab}
                 type="button"
@@ -1279,10 +1714,11 @@ function VendorShopPage() {
             {activeTab === "About Store" ? (
               <div className="vendor-about-card">
                 <span className="filter-label">About Store</span>
-                <h3>Electronics picks trusted by customers across Jodhpur and beyond.</h3>
+                <h3>{vendorDisplayName} is built around {vendorSubcategoryName || vendorCategoryName} products that match this seller's registration preferences.</h3>
                 <p>
-                  Shree Krishna Electronics focuses on fast-moving gadgets, mobile accessories, and reliable daily-use devices.
-                  The store is known for quick dispatch, verified products, and consistent after-sale support.
+                  {vendor.store_description || `${vendorDisplayName} is a live vendor storefront generated from the seller registration flow.`}
+                  {" "}
+                  Products below are pulled from the selected {vendorSubcategoryName ? "sub-category" : "category"} so the storefront is instantly populated after signup.
                 </p>
               </div>
             ) : null}
@@ -1308,6 +1744,13 @@ function VendorShopPage() {
             </div>
 
             <div className="product-grid">
+              {!visibleProducts.length ? (
+                <div className="vendor-about-card">
+                  <span className="filter-label">No products found</span>
+                  <h3>No products match the current storefront filters.</h3>
+                  <p>Try changing the search or filter options, or review the category and sub-category selected during vendor registration.</p>
+                </div>
+              ) : null}
               {visibleProducts.map((product, index) => {
                 const liked = wishlist.includes(product.id);
                 return (
@@ -1326,6 +1769,7 @@ function VendorShopPage() {
                       </div>
                       <h4>{product.title}</h4>
                       <p className="vendor-line">by {product.vendor}</p>
+                      <p className="mb-4 text-[0.88rem] leading-[1.7] text-muted">{product.description}</p>
                       <div className="rating-line">
                         <span className="rating-pill">{product.rating} ★</span>
                         <span>{product.reviews} reviews</span>
@@ -1335,7 +1779,24 @@ function VendorShopPage() {
                         <span>{product.oldPrice}</span>
                       </div>
                       <div className="card-actions">
-                        <a href="#" className="btn-primary">Add to Cart</a>
+                        <button
+                          type="button"
+                          className="btn-primary"
+                          onClick={() =>
+                            onAddToCart?.({
+                              id: product.id,
+                              title: product.title,
+                              vendor: product.vendor,
+                              price: product.price,
+                              numericPrice: product.rawPrice,
+                              image: product.image,
+                              meta: product.description,
+                              category: product.filterCategory,
+                            })
+                          }
+                        >
+                          Add to Cart
+                        </button>
                         <a href="/product-details" className="mini-link">View Details</a>
                       </div>
                     </div>
@@ -1350,7 +1811,7 @@ function VendorShopPage() {
   );
 }
 
-function ProductListingPage() {
+function ProductListingPage({ onAddToCart, onCartClick, cartCount = 0 }) {
   const [activeCategory, setActiveCategory] = useState("All");
   const [wishlist, setWishlist] = useState([]);
   const [openSupportFaq, setOpenSupportFaq] = useState(0);
@@ -1432,7 +1893,7 @@ function ProductListingPage() {
 
   return (
     <div className="bg-light text-textc">
-      <Header scrolled showUtilityLinks />
+      <Header scrolled showUtilityLinks onCartClick={onCartClick} cartCount={cartCount} />
 
       <section className="product-hero section-shell pt-[120px]">
         <div className="product-hero-bg" />
@@ -1538,7 +1999,23 @@ function ProductListingPage() {
                         <span>{product.oldPrice}</span>
                       </div>
                       <div className="card-actions">
-                        <a href="#" className="btn-primary">Add to Cart</a>
+                        <button
+                          type="button"
+                          className="btn-primary"
+                          onClick={() =>
+                            onAddToCart?.({
+                              id: product.id,
+                              title: product.title,
+                              vendor: product.vendor,
+                              price: product.price,
+                              image: product.image,
+                              meta: product.category,
+                              category: product.category,
+                            })
+                          }
+                        >
+                          Add to Cart
+                        </button>
                         <a href="/product-details" className="mini-link">View Details</a>
                       </div>
                     </div>
@@ -1605,8 +2082,8 @@ function ProductListingPage() {
             <div key={title} className={`anim d${index + 1}`}>
               <h5 className="mb-5 text-[0.78rem] font-bold uppercase tracking-[2px] text-primary">{title}</h5>
               <ul className="flex flex-col gap-[11px]">
-                {items.map((item) => (
-                  <li key={item}><a href="#" className="footer-link">{item}</a></li>
+                {items.map(({ label, href }) => (
+                  <li key={label}><a href={href} className="footer-link">{label}</a></li>
                 ))}
               </ul>
             </div>
@@ -1682,7 +2159,7 @@ const detailReviews = [
     text: "We ordered multiple sets for a hospitality project. The artisan finish was consistent and support during dispatch was smooth.",
   },
 ];
-function ProductDetailPage() {
+function ProductDetailPage({ onAddToCart, onCartClick }) {
   const [activeImage, setActiveImage] = useState(productDetailData.images[0]);
   const [openDetailFaq, setOpenDetailFaq] = useState(0);
   const [quantity, setQuantity] = useState(1);
@@ -1694,7 +2171,7 @@ function ProductDetailPage() {
           <a href="/profile" className="nav-utility">Go to Profile</a>
           <a href="/login" className="nav-utility">Login</a>
           <a href="/register" className="nav-utility nav-utility-accent">Signup</a>
-          <a href="/cart" className="nav-utility nav-icon-btn" aria-label="Cart">
+          <a href="/cart" className="nav-utility nav-icon-btn" aria-label="Cart" onClick={onCartClick}>
             <FaShoppingCart />
           </a>
         </div>
@@ -1755,7 +2232,23 @@ function ProductDetailPage() {
                   <span>{quantity}</span>
                   <button type="button" onClick={() => setQuantity((current) => current + 1)}>+</button>
                 </div>
-                <a href="#" className="btn-primary">Add {quantity} to Cart</a>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() =>
+                    onAddToCart?.({
+                      id: productDetailData.sku,
+                      title: productDetailData.title,
+                      vendor: productDetailData.vendor,
+                      price: productDetailData.price,
+                      image: activeImage,
+                      meta: productDetailData.category,
+                      category: productDetailData.category,
+                    }, quantity)
+                  }
+                >
+                  Add {quantity} to Cart
+                </button>
                 <a href="#contact-form" className="btn-outline">Enquire Now</a>
               </div>
             </div>
@@ -1915,10 +2408,10 @@ const contactCards = [
   ["Head Office", "Jaipur, Rajasthan", "Mon to Sat, 10 AM to 7 PM - remote-first support across India."],
 ];
 
-function AboutPage() {
+function AboutPage({ onCartClick, cartCount = 0 }) {
   return (
     <div className="bg-light text-textc">
-      <Header scrolled showUtilityLinks />
+      <Header scrolled showUtilityLinks onCartClick={onCartClick} cartCount={cartCount} />
 
       <section className="about-page-hero section-shell pt-[120px]">
         <div className="about-page-grid">
@@ -2047,7 +2540,7 @@ function AboutPage() {
             <p className="mb-6 max-w-[270px] text-[0.87rem] leading-[1.75] text-muted">India's trusted multi-vendor marketplace - connecting local sellers with millions of buyers across the nation.</p>
             <div className="flex gap-2.5">{[FaInstagram, FaFacebookF, FaTwitter, FaYoutube, FaLinkedinIn].map((Icon, index) => (<a key={index} href="#" className="social-link"><Icon /></a>))}</div>
           </div>
-          {footerLinks.map(([title, items], index) => (<div key={title} className={`anim d${index + 1}`}><h5 className="mb-5 text-[0.78rem] font-bold uppercase tracking-[2px] text-primary">{title}</h5><ul className="flex flex-col gap-[11px]">{items.map((item) => (<li key={item}><a href="#" className="footer-link">{item}</a></li>))}</ul></div>))}
+          {footerLinks.map(([title, items], index) => (<div key={title} className={`anim d${index + 1}`}><h5 className="mb-5 text-[0.78rem] font-bold uppercase tracking-[2px] text-primary">{title}</h5><ul className="flex flex-col gap-[11px]">{items.map(({ label, href }) => (<li key={label}><a href={href} className="footer-link">{label}</a></li>))}</ul></div>))}
         </div>
         <div className="mx-auto flex max-w-screen-xl flex-wrap items-center justify-between gap-3 border-t border-borderc pt-7"><p className="text-[0.82rem] text-muted">© 2025 eStoreindie. All rights reserved. Made with love in India.</p><p className="text-[0.82rem] text-muted">Designed for <a href="#" className="text-accent2 no-underline">Bharat's Entrepreneurs</a></p></div>
       </footer>
@@ -2055,10 +2548,10 @@ function AboutPage() {
   );
 }
 
-function ContactPage() {
+function ContactPage({ onCartClick, cartCount = 0 }) {
   return (
     <div className="bg-light text-textc">
-      <Header scrolled showUtilityLinks />
+      <Header scrolled showUtilityLinks onCartClick={onCartClick} cartCount={cartCount} />
 
       <section className="contact-page-hero section-shell pt-[120px]">
         <div className="contact-page-grid">
@@ -2131,7 +2624,7 @@ function ContactPage() {
       <footer className="border-t border-borderc bg-white/95 px-[5%] pb-8 pt-20 text-textc backdrop-blur-[16px]">
         <div className="mx-auto mb-14 grid max-w-screen-xl gap-[52px] md:grid-cols-2 xl:grid-cols-[2fr_1fr_1fr_1fr]">
           <FooterBrand />
-          {footerLinks.map(([title, items], index) => (<div key={title} className={`anim d${index + 1}`}><h5 className="mb-5 text-[0.78rem] font-bold uppercase tracking-[2px] text-primary">{title}</h5><ul className="flex flex-col gap-[11px]">{items.map((item) => (<li key={item}><a href="#" className="footer-link">{item}</a></li>))}</ul></div>))}
+          {footerLinks.map(([title, items], index) => (<div key={title} className={`anim d${index + 1}`}><h5 className="mb-5 text-[0.78rem] font-bold uppercase tracking-[2px] text-primary">{title}</h5><ul className="flex flex-col gap-[11px]">{items.map(({ label, href }) => (<li key={label}><a href={href} className="footer-link">{label}</a></li>))}</ul></div>))}
         </div>
         <div className="mx-auto flex max-w-screen-xl flex-wrap items-center justify-between gap-3 border-t border-borderc pt-7"><p className="text-[0.82rem] text-muted">© 2025 eStoreindie. All rights reserved. Made with love in India.</p><p className="text-[0.82rem] text-muted">Designed for <a href="#" className="text-accent2 no-underline">Bharat's Entrepreneurs</a></p></div>
       </footer>
@@ -2192,6 +2685,126 @@ const blogDetailContent = {
   ],
 };
 
+const policyPageContent = {
+  "/terms-conditions": {
+    eyebrow: "Terms & Conditions",
+    title: "Marketplace terms that set clear expectations for buyers, sellers, and platform use.",
+    description: "These terms explain how eStoreindie storefront access, orders, account use, and marketplace responsibilities are handled across the platform.",
+    sections: [
+      {
+        heading: "Platform Use",
+        points: [
+          "Users must provide accurate account, contact, and order information while using the marketplace.",
+          "Any misuse of the website, including fraud, scraping, abuse, or disruption of platform services, may lead to suspension or permanent access removal.",
+          "Product availability, pricing, and promotional offers may change without prior notice.",
+        ],
+      },
+      {
+        heading: "Orders and Payments",
+        points: [
+          "Orders are confirmed only after payment authorization or successful placement of a valid cash-on-delivery request, where available.",
+          "eStoreindie may cancel or hold orders that appear fraudulent, incomplete, or outside serviceable delivery limits.",
+          "Customers are responsible for reviewing product details, pricing, shipping timelines, and seller information before confirming checkout.",
+        ],
+      },
+      {
+        heading: "Seller Responsibilities",
+        points: [
+          "Sellers must list products honestly, including correct descriptions, pricing, stock details, and dispatch expectations.",
+          "The platform may moderate, pause, or remove listings that violate category standards, legal rules, or marketplace quality expectations.",
+          "Repeated order issues, policy violations, or customer complaints may affect seller visibility or account standing.",
+        ],
+      },
+      {
+        heading: "Liability and Policy Updates",
+        points: [
+          "The marketplace works to maintain accurate content and reliable service, but uninterrupted access and error-free performance cannot be guaranteed at all times.",
+          "eStoreindie is not responsible for losses caused by third-party logistics delays, payment gateway outages, or inaccurate information supplied by users or sellers.",
+          "These terms may be updated periodically, and continued use of the website means you accept the latest published version.",
+        ],
+      },
+    ],
+  },
+  "/privacy-policy": {
+    eyebrow: "Privacy Policy",
+    title: "How customer, seller, and visitor information is collected, used, and protected.",
+    description: "This policy outlines what personal data eStoreindie may collect, why it is needed, and how it is handled across browsing, account creation, and checkout activity.",
+    sections: [
+      {
+        heading: "Information We Collect",
+        points: [
+          "We may collect names, email addresses, phone numbers, delivery addresses, and account details when users register, place orders, or contact support.",
+          "Technical information such as browser type, device data, IP address, and usage activity may be collected to improve reliability and security.",
+          "Seller onboarding may require business details, bank information, tax identifiers, and store profile content for verification purposes.",
+        ],
+      },
+      {
+        heading: "How Information Is Used",
+        points: [
+          "Personal information is used to manage accounts, process orders, coordinate delivery, provide support, and improve the customer experience.",
+          "Seller information is used for onboarding review, payment processing, storefront setup, and marketplace compliance checks.",
+          "Platform analytics may be used to understand traffic, product interest, and operational performance trends.",
+        ],
+      },
+      {
+        heading: "Sharing and Security",
+        points: [
+          "Relevant information may be shared with payment processors, shipping partners, and service providers only when needed to fulfill marketplace operations.",
+          "We do not sell personal information to unrelated third parties for external marketing use.",
+          "Reasonable technical and administrative safeguards are used to protect stored data, though no digital system can guarantee absolute security.",
+        ],
+      },
+      {
+        heading: "User Choices",
+        points: [
+          "Users may request profile updates or correction of inaccurate personal information by contacting platform support.",
+          "Marketing messages, where enabled, can be limited or opted out of according to the communication method used.",
+          "Continued use of the site after policy updates means the revised privacy practices are accepted.",
+        ],
+      },
+    ],
+  },
+  "/refund-policy": {
+    eyebrow: "Refund Policy",
+    title: "A simple refund framework for cancelled, returned, damaged, or unavailable orders.",
+    description: "This policy explains when refunds may be issued, how requests are reviewed, and the usual timelines customers can expect after approval.",
+    sections: [
+      {
+        heading: "Eligible Refund Situations",
+        points: [
+          "Refunds may be considered when an order is cancelled before shipment, arrives damaged, is materially different from the listing, or cannot be fulfilled.",
+          "Requests may be declined for products that show clear signs of misuse, intentional damage, or return-condition violations.",
+          "Some product categories may follow additional seller-specific conditions where hygiene, perishability, or customization limits apply.",
+        ],
+      },
+      {
+        heading: "Request and Review Process",
+        points: [
+          "Customers should raise refund or return concerns as soon as possible after delivery, ideally with order details and supporting photos when relevant.",
+          "The platform or seller may review the request before approving a refund, replacement, or another resolution option.",
+          "Incomplete claims or requests raised after the allowed review window may take longer to assess or may be declined.",
+        ],
+      },
+      {
+        heading: "Refund Timelines",
+        points: [
+          "Approved refunds are usually sent back to the original payment method within 5 to 10 business days, depending on banking and payment partner processing.",
+          "Cash-on-delivery refunds, if supported, may require additional verification of account details before release.",
+          "Shipping fees or platform charges may be non-refundable in cases where the return reason is not caused by seller or platform error.",
+        ],
+      },
+      {
+        heading: "Support Escalation",
+        points: [
+          "If a customer and seller are unable to resolve a return or refund issue directly, eStoreindie support may review the case and guide the next step.",
+          "Repeated refund abuse, false claims, or policy manipulation may lead to restricted account activity.",
+          "For help with a live order issue, users should contact support through the website contact page before initiating chargebacks whenever possible.",
+        ],
+      },
+    ],
+  },
+};
+
 function FooterBrand() {
   return (
     <div className="anim">
@@ -2210,7 +2823,7 @@ function FooterBrand() {
   );
 }
 
-function Header({ scrolled = false, showUtilityLinks = false, showHomeCta = false }) {
+function Header({ scrolled = false, showUtilityLinks = false, showHomeCta = false, cartCount = 0, onCartClick }) {
   return (
     <nav className={`nav-shell ${scrolled ? "scrolled" : ""}`}>
       <a href="/" className="nav-logo"><img src={siteLogo} alt="eStoreindie" className="site-logo-img" /></a>
@@ -2221,8 +2834,9 @@ function Header({ scrolled = false, showUtilityLinks = false, showHomeCta = fals
       </ul>
       <div className="nav-action-group">
         {showUtilityLinks ? (
-          <a href="/cart" className="nav-utility nav-icon-btn" aria-label="Cart">
+          <a href="/cart" className="nav-utility nav-icon-btn" aria-label="Cart" onClick={onCartClick}>
             <FaShoppingCart />
+            {cartCount ? <span className="ml-2 text-[0.75rem] font-bold">{cartCount}</span> : null}
           </a>
         ) : null}
         {showUtilityLinks ? <a href="/profile" className="nav-utility">Profile</a> : null}
@@ -2266,8 +2880,129 @@ function InnerPageHero({ eyebrow, title, description, primaryAction, secondaryAc
   );
 }
 
+function PolicyPage({ policy }) {
+  return (
+    <div className="bg-light text-textc">
+      <InnerPageHero
+        eyebrow={policy.eyebrow}
+        title={policy.title}
+        description={policy.description}
+        primaryAction={{ href: "/contact", label: "Contact Support" }}
+        secondaryAction={{ href: "/products", label: "Browse Products" }}
+        tone="warm"
+      />
+
+      <section className="section-shell pt-0">
+        <div className="mx-auto grid max-w-[1480px] gap-8 lg:grid-cols-[0.82fr_1.18fr]">
+          <aside className="detail-panel anim sl go">
+            <h3>Quick Notes</h3>
+            <ul>
+              <li><FaCheck className="text-accent" />Applies to customer and seller activity on eStoreindie.</li>
+              <li><FaCheck className="text-accent" />Please review the full policy before placing orders or publishing products.</li>
+              <li><FaCheck className="text-accent" />For order-specific help, use the contact page for support escalation.</li>
+            </ul>
+            <div className="mt-6 rounded-[22px] bg-light p-5">
+              <strong className="block text-[1rem] text-primary">Related Policies</strong>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <a href="/terms-conditions" className="nav-utility">Terms</a>
+                <a href="/privacy-policy" className="nav-utility">Privacy</a>
+                <a href="/refund-policy" className="nav-utility">Refunds</a>
+              </div>
+            </div>
+          </aside>
+
+          <div className="space-y-6">
+            {policy.sections.map((section, index) => (
+              <article key={section.heading} className={`detail-panel anim sr go d${Math.min(index + 1, 4)}`}>
+                <h3>{section.heading}</h3>
+                <div className="mt-5 space-y-4">
+                  {section.points.map((point) => (
+                    <div key={point} className="flex items-start gap-3 text-[0.95rem] leading-[1.8] text-muted">
+                      <span className="mt-1 text-accent"><FaCheck /></span>
+                      <p>{point}</p>
+                    </div>
+                  ))}
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <footer className="border-t border-borderc bg-white/95 px-[5%] pb-8 pt-20 text-textc backdrop-blur-[16px]">
+        <div className="mx-auto mb-14 grid max-w-screen-xl gap-[52px] md:grid-cols-2 xl:grid-cols-[2fr_1fr_1fr_1fr]">
+          <FooterBrand />
+          {footerLinks.map(([title, items], index) => (
+            <div key={title} className={`anim d${index + 1}`}>
+              <h5 className="mb-5 text-[0.78rem] font-bold uppercase tracking-[2px] text-primary">{title}</h5>
+              <ul className="flex flex-col gap-[11px]">
+                {items.map(({ label, href }) => (
+                  <li key={label}><a href={href} className="footer-link">{label}</a></li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+        <div className="mx-auto flex max-w-screen-xl flex-wrap items-center justify-between gap-3 border-t border-borderc pt-7">
+          <p className="text-[0.82rem] text-muted">© 2025 eStoreindie. All rights reserved. Made with love in India.</p>
+          <p className="text-[0.82rem] text-muted">Designed for <a href="/" className="text-accent2 no-underline">Bharat's Entrepreneurs</a></p>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
 
 function ProfilePage() {
+  const [customerSession, setCustomerSession] = useState(() => getStoredCustomerSession());
+
+  const handleLogout = () => {
+    clearCustomerSession();
+    setCustomerSession(null);
+    if (typeof window !== "undefined") {
+      window.location.assign("/login");
+    }
+  };
+
+  if (!customerSession) {
+    return (
+      <div className="bg-light text-textc">
+        <InnerPageHero
+          eyebrow="My Profile"
+          title="Sign in to view your account, addresses, and order history."
+          description="Customer account access lives on the frontend buyer flow only. Admin and vendor panels stay separate."
+          primaryAction={{ href: "/login", label: "Login as Customer" }}
+          secondaryAction={{ href: "/register", label: "Create Account" }}
+          showTopline={false}
+        />
+
+        <section className="profile-shell">
+          <div className="profile-bg-orb profile-bg-orb-one" />
+          <div className="profile-bg-orb profile-bg-orb-two" />
+          <div className="mx-auto max-w-[980px]">
+            <div className="profile-panel anim go">
+              <div className="profile-panel-head">
+                <div>
+                  <span className="section-label !mb-3">Customer Access Required</span>
+                  <h3>Login to continue to your buyer account</h3>
+                </div>
+              </div>
+              <p className="section-sub max-w-[720px]">
+                Use the customer login/register pages on the frontend to access your shopping profile.
+                Admin and vendor accounts are intentionally blocked from this user flow.
+              </p>
+            </div>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  const memberSince = customerSession.created_at
+    ? new Date(customerSession.created_at).toLocaleDateString("en-IN", { month: "long", year: "numeric" })
+    : "Recently joined";
+  const locationLabel = [customerSession.city, customerSession.address].filter(Boolean).join(", ");
+
   return (
     <div className="bg-light text-textc">
       <InnerPageHero
@@ -2290,16 +3025,16 @@ function ProfilePage() {
                 <FaUserCircle />
               </div>
               <span className="section-label !mb-3">My Profile</span>
-              <h1>Ananya Sharma</h1>
+              <h1>{customerSession.name}</h1>
               <p>Buyer account for tracking orders, saving addresses, and managing purchase details across the marketplace.</p>
 
               <div className="profile-user-meta">
-                <div><FaEnvelope /><span>ananya.sharma@example.com</span></div>
-                <div><FaPhoneAlt /><span>+91 98765 43210</span></div>
-                <div><FaMapMarkerAlt /><span>Mumbai, Maharashtra</span></div>
+                <div><FaEnvelope /><span>{customerSession.email}</span></div>
+                <div><FaPhoneAlt /><span>{customerSession.phone || "Not added yet"}</span></div>
+                <div><FaMapMarkerAlt /><span>{locationLabel || "Address not added yet"}</span></div>
               </div>
 
-              <a href="/register" className="btn-primary profile-action-btn"><FaEdit />Edit Account</a>
+              <button type="button" onClick={handleLogout} className="btn-primary profile-action-btn"><FaEdit />Logout</button>
             </div>
 
             <div className="profile-side-card">
@@ -2349,19 +3084,19 @@ function ProfilePage() {
                 <div className="profile-detail-grid">
                   <div className="profile-detail-item">
                     <span>Full name</span>
-                    <strong>Ananya Sharma</strong>
+                    <strong>{customerSession.name}</strong>
                   </div>
                   <div className="profile-detail-item">
                     <span>Member since</span>
-                    <strong>January 2025</strong>
+                    <strong>{memberSince}</strong>
                   </div>
                   <div className="profile-detail-item">
                     <span>Email address</span>
-                    <strong>ananya.sharma@example.com</strong>
+                    <strong>{customerSession.email}</strong>
                   </div>
                   <div className="profile-detail-item">
-                    <span>Preferred payment</span>
-                    <strong>UPI and Credit Card</strong>
+                    <span>Account status</span>
+                    <strong>{formatLabel(customerSession.status || "active")}</strong>
                   </div>
                 </div>
 
@@ -2381,16 +3116,13 @@ function ProfilePage() {
                 </div>
 
                 <div className="profile-address-list">
-                  {profileAddresses.map((address) => (
-                    <div key={address.title} className="profile-address-card">
-                      <span>{address.title}</span>
-                      <strong>{address.name}</strong>
-                      {address.lines.map((line) => (
-                        <p key={line}>{line}</p>
-                      ))}
-                      <small>{address.phone}</small>
-                    </div>
-                  ))}
+                  <div className="profile-address-card">
+                    <span>Primary address</span>
+                    <strong>{customerSession.name}</strong>
+                    <p>{customerSession.address || "Address not added yet"}</p>
+                    <p>{customerSession.city || "City not added yet"}</p>
+                    <small>{customerSession.phone || "Phone not added yet"}</small>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2436,10 +3168,10 @@ function ProfilePage() {
   );
 }
 
-function BlogPage() {
+function BlogPage({ onCartClick, cartCount = 0 }) {
   return (
     <div className="bg-light text-textc">
-      <Header scrolled showUtilityLinks />
+      <Header scrolled showUtilityLinks onCartClick={onCartClick} cartCount={cartCount} />
 
       <section className="blog-page-hero section-shell pt-[120px]">
         <div className="blog-page-grid">
@@ -2487,17 +3219,17 @@ function BlogPage() {
       </section>
 
       <footer className="border-t border-borderc bg-white/95 px-[5%] pb-8 pt-20 text-textc backdrop-blur-[16px]">
-        <div className="mx-auto mb-14 grid max-w-screen-xl gap-[52px] md:grid-cols-2 xl:grid-cols-[2fr_1fr_1fr_1fr]"><FooterBrand />{footerLinks.map(([title, items], index) => (<div key={title} className={`anim d${index + 1}`}><h5 className="mb-5 text-[0.78rem] font-bold uppercase tracking-[2px] text-primary">{title}</h5><ul className="flex flex-col gap-[11px]">{items.map((item) => (<li key={item}><a href="#" className="footer-link">{item}</a></li>))}</ul></div>))}</div>
+        <div className="mx-auto mb-14 grid max-w-screen-xl gap-[52px] md:grid-cols-2 xl:grid-cols-[2fr_1fr_1fr_1fr]"><FooterBrand />{footerLinks.map(([title, items], index) => (<div key={title} className={`anim d${index + 1}`}><h5 className="mb-5 text-[0.78rem] font-bold uppercase tracking-[2px] text-primary">{title}</h5><ul className="flex flex-col gap-[11px]">{items.map(({ label, href }) => (<li key={label}><a href={href} className="footer-link">{label}</a></li>))}</ul></div>))}</div>
         <div className="mx-auto flex max-w-screen-xl flex-wrap items-center justify-between gap-3 border-t border-borderc pt-7"><p className="text-[0.82rem] text-muted">© 2025 eStoreindie. All rights reserved. Made with love in India.</p><p className="text-[0.82rem] text-muted">Designed for <a href="#" className="text-accent2 no-underline">Bharat's Entrepreneurs</a></p></div>
       </footer>
     </div>
   );
 }
 
-function BlogDetailPage() {
+function BlogDetailPage({ onCartClick, cartCount = 0 }) {
   return (
     <div className="bg-light text-textc">
-      <Header scrolled showUtilityLinks />
+      <Header scrolled showUtilityLinks onCartClick={onCartClick} cartCount={cartCount} />
 
       <section className="section-shell pt-[120px] pb-0">
         <div className="detail-breadcrumbs anim go">
@@ -2556,20 +3288,22 @@ function BlogDetailPage() {
       </section>
 
       <footer className="border-t border-borderc bg-white/95 px-[5%] pb-8 pt-20 text-textc backdrop-blur-[16px]">
-        <div className="mx-auto mb-14 grid max-w-screen-xl gap-[52px] md:grid-cols-2 xl:grid-cols-[2fr_1fr_1fr_1fr]"><FooterBrand />{footerLinks.map(([title, items], index) => (<div key={title} className={`anim d${index + 1}`}><h5 className="mb-5 text-[0.78rem] font-bold uppercase tracking-[2px] text-primary">{title}</h5><ul className="flex flex-col gap-[11px]">{items.map((item) => (<li key={item}><a href="#" className="footer-link">{item}</a></li>))}</ul></div>))}</div>
+        <div className="mx-auto mb-14 grid max-w-screen-xl gap-[52px] md:grid-cols-2 xl:grid-cols-[2fr_1fr_1fr_1fr]"><FooterBrand />{footerLinks.map(([title, items], index) => (<div key={title} className={`anim d${index + 1}`}><h5 className="mb-5 text-[0.78rem] font-bold uppercase tracking-[2px] text-primary">{title}</h5><ul className="flex flex-col gap-[11px]">{items.map(({ label, href }) => (<li key={label}><a href={href} className="footer-link">{label}</a></li>))}</ul></div>))}</div>
         <div className="mx-auto flex max-w-screen-xl flex-wrap items-center justify-between gap-3 border-t border-borderc pt-7"><p className="text-[0.82rem] text-muted">© 2025 eStoreindie. All rights reserved. Made with love in India.</p><p className="text-[0.82rem] text-muted">Designed for <a href="#" className="text-accent2 no-underline">Bharat's Entrepreneurs</a></p></div>
       </footer>
     </div>
   );
 }
-function CheckoutPage() {
-  const checkoutItems = [
-    { title: "Handwoven Cotton Saree", vendor: "Priya Handloom Studio", qty: 1, price: "Rs. 2,499" },
-    { title: "Brass Decor Lamp", vendor: "Aarav Home Crafts", qty: 1, price: "Rs. 1,899" },
-  ];
+function CheckoutPage({ cartItems, onCartClick }) {
+  const checkoutItems = cartItems;
   const [couponCode, setCouponCode] = useState("SAVE10");
   const [paymentMethod, setPaymentMethod] = useState("upi");
   const [placed, setPlaced] = useState(false);
+  const subtotal = checkoutItems.reduce((sum, item) => sum + (item.numericPrice * item.qty), 0);
+  const delivery = checkoutItems.length ? 120 : 0;
+  const discount = checkoutItems.length ? 350 : 0;
+  const taxes = checkoutItems.length ? 81 : 0;
+  const total = Math.max(0, subtotal + delivery + taxes - discount);
 
   const handleSubmit = (event) => {
     event.preventDefault();
@@ -2694,11 +3428,11 @@ function CheckoutPage() {
                 <div className="checkout-panel anim sr go d2">
                   <h3>Price Details</h3>
                   <div className="space-y-4 text-[0.93rem] text-muted">
-                    <div className="flex items-center justify-between"><span>Subtotal</span><strong className="text-primary">Rs. 4,398</strong></div>
-                    <div className="flex items-center justify-between"><span>Delivery</span><strong className="text-primary">Rs. 120</strong></div>
-                    <div className="flex items-center justify-between"><span>Coupon Discount</span><strong className="text-green-600">- Rs. 350</strong></div>
-                    <div className="flex items-center justify-between"><span>Taxes</span><strong className="text-primary">Rs. 81</strong></div>
-                    <div className="checkout-total-row"><span>Total Payable</span><strong>Rs. 4,249</strong></div>
+                    <div className="flex items-center justify-between"><span>Subtotal</span><strong className="text-primary">{formatCurrency(subtotal)}</strong></div>
+                    <div className="flex items-center justify-between"><span>Delivery</span><strong className="text-primary">{formatCurrency(delivery)}</strong></div>
+                    <div className="flex items-center justify-between"><span>Coupon Discount</span><strong className="text-green-600">- {formatCurrency(discount)}</strong></div>
+                    <div className="flex items-center justify-between"><span>Taxes</span><strong className="text-primary">{formatCurrency(taxes)}</strong></div>
+                    <div className="checkout-total-row"><span>Total Payable</span><strong>{formatCurrency(total)}</strong></div>
                   </div>
                   <div className="checkout-meta-list mt-6">
                     <div><FaShieldAlt className="text-accent" /><span>Secure encrypted payment flow</span></div>
@@ -2718,7 +3452,7 @@ function CheckoutPage() {
               <p>Your order has been confirmed. A payment and delivery update would typically be sent to the registered email and phone number.</p>
               <div className="mt-8 flex flex-wrap justify-center gap-4">
                 <a href="/products" className="btn-primary">Continue Shopping</a>
-                <a href="/cart" className="nav-utility">Back to Cart</a>
+                <a href="/cart" className="nav-utility" onClick={onCartClick}>Back to Cart</a>
               </div>
             </div>
           )}
@@ -2728,11 +3462,10 @@ function CheckoutPage() {
   );
 }
 
-function CartPage() {
-  const cartItems = [
-    { title: "Handwoven Cotton Saree", vendor: "Priya Handloom Studio", price: "Rs. 2,499", meta: "Soft cotton | Jaipur craft" },
-    { title: "Brass Decor Lamp", vendor: "Aarav Home Crafts", price: "Rs. 1,899", meta: "Warm finish | Ready to ship" },
-  ];
+function CartPage({ cartItems, onCartClick, onUpdateQty, onRemoveItem }) {
+  const subtotal = cartItems.reduce((sum, item) => sum + (item.numericPrice * item.qty), 0);
+  const delivery = cartItems.length ? 120 : 0;
+  const total = subtotal + delivery;
 
   return (
     <div className="bg-light text-textc">
@@ -2757,15 +3490,27 @@ function CartPage() {
             <div className="detail-panel anim sl go">
               <h3>Cart Items</h3>
               <div className="space-y-4">
+                {!cartItems.length ? (
+                  <div className="rounded-[22px] bg-light p-6">
+                    <strong className="block text-[1rem] text-primary">Your cart is empty</strong>
+                    <p className="mt-2 text-[0.9rem] text-muted">Add products from the marketplace and they will appear here instantly.</p>
+                  </div>
+                ) : null}
                 {cartItems.map((item) => (
-                  <div key={item.title} className="rounded-[22px] bg-light p-5">
+                  <div key={item.id} className="rounded-[22px] bg-light p-5">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <strong className="block text-[1rem] text-primary">{item.title}</strong>
                         <span className="mt-1 block text-[0.85rem] text-muted">{item.vendor}</span>
                         <p className="mt-2 text-[0.88rem] text-muted">{item.meta}</p>
+                        <div className="mt-4 flex items-center gap-3">
+                          <button type="button" className="nav-utility" onClick={() => onUpdateQty(item.id, item.qty - 1)}>-</button>
+                          <strong>{item.qty}</strong>
+                          <button type="button" className="nav-utility" onClick={() => onUpdateQty(item.id, item.qty + 1)}>+</button>
+                          <button type="button" className="mini-link" onClick={() => onRemoveItem(item.id)}>Remove</button>
+                        </div>
                       </div>
-                      <strong className="font-display text-[1.35rem] text-primary">{item.price}</strong>
+                      <strong className="font-display text-[1.35rem] text-primary">{formatCurrency(item.numericPrice * item.qty)}</strong>
                     </div>
                   </div>
                 ))}
@@ -2775,12 +3520,12 @@ function CartPage() {
             <div className="detail-panel anim sr go">
               <h3>Order Summary</h3>
               <div className="space-y-4 text-[0.92rem] text-muted">
-                <div className="flex items-center justify-between"><span>Subtotal</span><strong className="text-primary">Rs. 4,398</strong></div>
-                <div className="flex items-center justify-between"><span>Delivery</span><strong className="text-primary">Rs. 120</strong></div>
+                <div className="flex items-center justify-between"><span>Subtotal</span><strong className="text-primary">{formatCurrency(subtotal)}</strong></div>
+                <div className="flex items-center justify-between"><span>Delivery</span><strong className="text-primary">{formatCurrency(delivery)}</strong></div>
                 <div className="flex items-center justify-between"><span>Platform protection</span><strong className="text-primary">Free</strong></div>
-                <div className="flex items-center justify-between border-t border-borderc pt-4"><span>Total</span><strong className="font-display text-[1.5rem] text-primary">Rs. 4,518</strong></div>
+                <div className="flex items-center justify-between border-t border-borderc pt-4"><span>Total</span><strong className="font-display text-[1.5rem] text-primary">{formatCurrency(total)}</strong></div>
               </div>
-              <a href="/checkout" className="btn-primary mt-8">Proceed to Checkout</a>
+              <a href="/checkout" className={`btn-primary mt-8 ${!cartItems.length ? "pointer-events-none opacity-60" : ""}`}>Proceed to Checkout</a>
             </div>
           </div>
         </div>
@@ -2796,6 +3541,14 @@ function LoginPage() {
     remember: true,
   });
   const [submitted, setSubmitted] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (getStoredCustomerSession() && typeof window !== "undefined") {
+      window.location.replace("/profile");
+    }
+  }, []);
 
   const handleChange = (event) => {
     const { name, value, type, checked } = event.target;
@@ -2805,9 +3558,43 @@ function LoginPage() {
     }));
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    setSubmitted(true);
+    setErrorMessage("");
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(`${SELLER_API_BASE_URL}/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          email: loginData.email,
+          password: loginData.password,
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload.message || "Unable to login right now.");
+      }
+
+      storeCustomerSession(payload.user);
+      setSubmitted(true);
+
+      if (typeof window !== "undefined") {
+        window.setTimeout(() => {
+          window.location.assign("/profile");
+        }, 700);
+      }
+    } catch (error) {
+      setErrorMessage(error.message || "Unable to login right now.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -2850,57 +3637,53 @@ function LoginPage() {
 
           <div className="register-form-card anim sc go d2">
             {!submitted ? (
-              <>
-                <div className="register-form-head">
-                  <span className="section-label !mb-3">Login</span>
-                  <h2>Welcome back</h2>
-                  <p>Enter your registered account details to continue.</p>
-                  <div className="auth-switch-row">
-                    <a href="/register" className="auth-switch-link">Register</a>
-                    <a href="/login" className="auth-switch-link active">Login</a>
-                  </div>
-                </div>
-
-                <form onSubmit={handleSubmit}>
-                  <div className="register-form-grid !grid-cols-1 mt-8">
-                    <label className="register-input-wrap">
-                      <span><FaEnvelope /> Email Address</span>
-                      <input name="email" type="email" placeholder="you@example.com" value={loginData.email} onChange={handleChange} required />
-                    </label>
-
-                    <label className="register-input-wrap">
-                      <span><FaLock /> Password</span>
-                      <input name="password" type="password" placeholder="Enter password" value={loginData.password} onChange={handleChange} required />
-                    </label>
-                  </div>
-
-                  <div className="login-help-row">
-                    <label className="register-check !mt-0">
-                      <input name="remember" type="checkbox" checked={loginData.remember} onChange={handleChange} />
-                      <span>Remember me</span>
-                    </label>
-                    <a href="/register" className="mini-link">Forgot password?</a>
-                  </div>
-
-                  <button type="submit" className="btn-primary register-submit">Login</button>
-                </form>
-              </>
+              <form className="space-y-5" onSubmit={handleSubmit}>
+                <label className="field-group">
+                  <span>Email Address</span>
+                  <input type="email" name="email" value={loginData.email} onChange={handleChange} placeholder="you@example.com" required />
+                </label>
+                <label className="field-group">
+                  <span>Password</span>
+                  <input type="password" name="password" value={loginData.password} onChange={handleChange} placeholder="Enter your password" required />
+                </label>
+                <label className="flex items-center gap-3 text-sm text-muted">
+                  <input type="checkbox" name="remember" checked={loginData.remember} onChange={handleChange} />
+                  Keep me signed in on this device
+                </label>
+                {errorMessage ? <p className="text-sm text-red-600">{errorMessage}</p> : null}
+                <button type="submit" className="btn-next w-full" disabled={isSubmitting}>
+                  {isSubmitting ? "Signing In..." : "Sign In"}
+                </button>
+              </form>
             ) : (
               <div className="success-panel">
-                <div className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-full bg-[rgba(232,93,47,0.12)] text-[1.5rem] text-accent">
-                  <FaCheck />
-                </div>
+                <span className="mb-4 block text-[4.5rem] floaty">✓</span>
                 <h3>Login successful</h3>
-                <p>Your account session has been started. From here the user can move to cart, checkout, and order tracking.</p>
-                <div className="mt-8 flex flex-wrap justify-center gap-4">
-                  <a href="/cart" className="btn-primary">Go to Cart</a>
-                  <a href="/checkout" className="nav-utility">Go to Checkout</a>
-                </div>
+                <p>Your customer account is ready. Redirecting you to the buyer profile now.</p>
               </div>
             )}
           </div>
         </div>
       </section>
+    </div>
+  );
+}
+
+function CartLoginPrompt({ onClose }) {
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/45 px-4" onClick={onClose}>
+      <div className="w-full max-w-[520px] rounded-[28px] bg-white p-8 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+        <span className="section-label">Login Required</span>
+        <h3 className="mt-3 font-display text-[2rem] text-primary">Please login before opening your cart</h3>
+        <p className="mt-4 text-[0.98rem] leading-[1.8] text-muted">
+          Your cart is available only for signed-in customers so we can keep checkout, saved details, and order tracking connected to the right buyer account.
+        </p>
+        <div className="mt-8 flex flex-wrap gap-3">
+          <a href="/login" className="btn-primary" onClick={onClose}>Go to Login</a>
+          <a href="/register" className="btn-outline" onClick={onClose}>Create Account</a>
+          <button type="button" className="nav-utility" onClick={onClose}>Continue Browsing</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -2917,6 +3700,14 @@ function RegisterPage() {
     agree: false,
   });
   const [submitted, setSubmitted] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (getStoredCustomerSession() && typeof window !== "undefined") {
+      window.location.replace("/profile");
+    }
+  }, []);
 
   const handleChange = (event) => {
     const { name, value, type, checked } = event.target;
@@ -2926,9 +3717,59 @@ function RegisterPage() {
     }));
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    setSubmitted(true);
+    setErrorMessage("");
+
+    if (formData.password !== formData.confirmPassword) {
+      setErrorMessage("Password and confirm password must match.");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(`${SELLER_API_BASE_URL}/auth/register`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          name: formData.fullName,
+          email: formData.email,
+          phone: formData.phone,
+          city: formData.city,
+          address: formData.address,
+          password: formData.password,
+          password_confirmation: formData.confirmPassword,
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        if (payload.errors) {
+          const firstFieldError = Object.values(payload.errors)[0]?.[0];
+          throw new Error(firstFieldError || payload.message || "Unable to create account right now.");
+        }
+
+        throw new Error(payload.message || "Unable to create account right now.");
+      }
+
+      storeCustomerSession(payload.user);
+      setSubmitted(true);
+
+      if (typeof window !== "undefined") {
+        window.setTimeout(() => {
+          window.location.assign("/profile");
+        }, 800);
+      }
+    } catch (error) {
+      setErrorMessage(error.message || "Unable to create account right now.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -2976,76 +3817,55 @@ function RegisterPage() {
 
           <div className="register-form-card anim sc go d2">
             {!submitted ? (
-              <>
-                <div className="register-form-head">
-                  <span className="section-label !mb-3">Register Now</span>
-                  <h2>Welcome aboard</h2>
-                  <p>Fill in your details to create a new account.</p>
-                  <div className="auth-switch-row">
-                    <a href="/register" className="auth-switch-link active">Register</a>
-                    <a href="/login" className="auth-switch-link">Login</a>
-                  </div>
-                </div>
-
-                <form onSubmit={handleSubmit}>
-                  <div className="register-form-grid">
-                    <label className="register-input-wrap">
-                      <span><FaUserAlt /> Full Name</span>
-                      <input name="fullName" type="text" placeholder="Enter full name" value={formData.fullName} onChange={handleChange} required />
-                    </label>
-
-                    <label className="register-input-wrap">
-                      <span><FaEnvelope /> Email Address</span>
-                      <input name="email" type="email" placeholder="you@example.com" value={formData.email} onChange={handleChange} required />
-                    </label>
-
-                    <label className="register-input-wrap">
-                      <span><FaPhoneAlt /> Phone Number</span>
-                      <input name="phone" type="tel" placeholder="+91 98765 43210" value={formData.phone} onChange={handleChange} required />
-                    </label>
-
-                    <label className="register-input-wrap">
-                      <span><FaMapMarkerAlt /> City</span>
-                      <input name="city" type="text" placeholder="Your city" value={formData.city} onChange={handleChange} required />
-                    </label>
-
-                    <label className="register-input-wrap register-input-wide">
-                      <span><FaMapMarkerAlt /> Address</span>
-                      <textarea name="address" placeholder="Enter full address" value={formData.address} onChange={handleChange} required />
-                    </label>
-
-                    <div className="register-trust-box">
-                      <FaCheck className="text-accent" />
-                      <span>Secure signup with essential profile details only.</span>
-                    </div>
-
-                    <label className="register-input-wrap">
-                      <span><FaLock /> Password</span>
-                      <input name="password" type="password" placeholder="Create password" value={formData.password} onChange={handleChange} required />
-                    </label>
-
-                    <label className="register-input-wrap">
-                      <span><FaLock /> Confirm Password</span>
-                      <input name="confirmPassword" type="password" placeholder="Re-enter password" value={formData.confirmPassword} onChange={handleChange} required />
-                    </label>
-                  </div>
-
-                  <label className="register-check">
-                    <input name="agree" type="checkbox" checked={formData.agree} onChange={handleChange} required />
-                    <span>I agree to the Terms of Service and Privacy Policy.</span>
+              <form className="space-y-5" onSubmit={handleSubmit}>
+                <div className="form-row">
+                  <label className="field-group">
+                    <span>Full Name</span>
+                    <input type="text" name="fullName" value={formData.fullName} onChange={handleChange} placeholder="Ananya Sharma" required />
                   </label>
-
-                  <button type="submit" className="btn-primary register-submit">Create Account</button>
-                </form>
-              </>
+                  <label className="field-group">
+                    <span>Email Address</span>
+                    <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="you@example.com" required />
+                  </label>
+                </div>
+                <div className="form-row">
+                  <label className="field-group">
+                    <span>Phone Number</span>
+                    <input type="text" name="phone" value={formData.phone} onChange={handleChange} placeholder="+91 98765 43210" required />
+                  </label>
+                  <label className="field-group">
+                    <span>City</span>
+                    <input type="text" name="city" value={formData.city} onChange={handleChange} placeholder="Mumbai" required />
+                  </label>
+                </div>
+                <label className="field-group">
+                  <span>Address</span>
+                  <textarea name="address" value={formData.address} onChange={handleChange} placeholder="Delivery address" required />
+                </label>
+                <div className="form-row">
+                  <label className="field-group">
+                    <span>Password</span>
+                    <input type="password" name="password" value={formData.password} onChange={handleChange} placeholder="Create password" required />
+                  </label>
+                  <label className="field-group">
+                    <span>Confirm Password</span>
+                    <input type="password" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} placeholder="Confirm password" required />
+                  </label>
+                </div>
+                <label className="flex items-center gap-3 text-sm text-muted">
+                  <input type="checkbox" name="agree" checked={formData.agree} onChange={handleChange} required />
+                  I agree to the marketplace terms, privacy policy, and account communication updates.
+                </label>
+                {errorMessage ? <p className="text-sm text-red-600">{errorMessage}</p> : null}
+                <button type="submit" className="btn-next w-full" disabled={isSubmitting}>
+                  {isSubmitting ? "Creating Account..." : "Create Account"}
+                </button>
+              </form>
             ) : (
               <div className="success-panel">
-                <div className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-full bg-[rgba(232,93,47,0.12)] text-[1.5rem] text-accent">
-                  <FaCheck />
-                </div>
-                <h3>Registration submitted</h3>
-                <p>Your user account request has been captured successfully. Next step can be API integration or backend hookup.</p>
-                <a href="/" className="btn-primary mt-8">Back to Home</a>
+                <span className="mb-4 block text-[4.5rem] floaty">✓</span>
+                <h3>Account created</h3>
+                <p>Your customer account is ready. Redirecting you to the profile page now.</p>
               </div>
             )}
           </div>
@@ -3086,38 +3906,47 @@ function StepNode({ number, current, label, showLine }) {
   );
 }
 
-function Field({ label, placeholder }) {
+function Field({ label, name, placeholder, value, onChange, error, type = "text" }) {
   return (
     <label className="field-group">
       <span>{label}</span>
-      <input type="text" placeholder={placeholder} />
+      <input type={type} name={name} placeholder={placeholder} value={value} onChange={(event) => onChange(name, event.target.value)} />
+      {error ? <small className="text-[0.8rem] font-medium text-[#d64545]">{error}</small> : null}
     </label>
   );
 }
 
-function SelectField({ label, options }) {
+function SelectField({ label, name, options, value, onChange, error, disabled = false }) {
   return (
     <label className="field-group">
       <span>{label}</span>
-      <select defaultValue={options[0]}>
+      <select name={name} value={value} onChange={(event) => onChange(name, event.target.value)} disabled={disabled}>
         {options.map((option) => (
-          <option key={option}>{option}</option>
+          <option key={`${name}-${option.value || "empty"}-${option.label}`} value={option.value}>
+            {option.label}
+          </option>
         ))}
       </select>
+      {error ? <small className="text-[0.8rem] font-medium text-[#d64545]">{error}</small> : null}
     </label>
   );
 }
 
-function TextAreaField({ label, placeholder }) {
+function TextAreaField({ label, name, placeholder, value, onChange, error }) {
   return (
     <label className="field-group">
       <span>{label}</span>
-      <textarea placeholder={placeholder} />
+      <textarea name={name} placeholder={placeholder} value={value} onChange={(event) => onChange(name, event.target.value)} />
+      {error ? <small className="text-[0.8rem] font-medium text-[#d64545]">{error}</small> : null}
     </label>
   );
 }
 
 export default App;
+
+
+
+
 
 
 

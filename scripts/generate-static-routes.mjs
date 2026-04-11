@@ -20,6 +20,9 @@ const routes = [
   "login",
   "register",
   "profile",
+  "terms-conditions",
+  "privacy-policy",
+  "refund-policy",
   "vendor-shop",
 ];
 
