@@ -700,7 +700,7 @@ function App() {
             // Clear local storage cart and save merged one
             storeCartItems([]);
             clearCartSession();
-            
+
             // Update local cart with merged items
             const mergedItems = mergeResponse.cart.items.map(item => ({
               id: item.id,
@@ -716,7 +716,7 @@ function App() {
               meta: item.product_snapshot?.meta || "Marketplace product",
               qty: item.quantity,
             }));
-            
+
             setCartItems(mergedItems);
             storeCartItems(mergedItems);
           }
@@ -761,12 +761,12 @@ function App() {
         : [...current, normalized];
 
       storeCartItems(next);
-      
+
       // Save to database (both guest and logged-in users)
       (async () => {
         try {
           let cartSession = getStoredCartSession();
-          
+
           if (!cartSession) {
             // Create new cart (guest or user)
             const createResponse = await createOrGetCart(customerSession?.id);
@@ -2009,7 +2009,7 @@ function VendorShopPage({ storefrontSlug, onAddToCart, cartCount = 0, cartItems 
   return (
     <div className="bg-light text-textc">
       <div className="fixed top-0 left-0 right-0 z-40 flex items-center justify-between gap-6 border-b border-borderc bg-white/95 px-[5%] py-4 backdrop-blur-[16px]">
-        <a href="/" className="nav-logo"><img src={siteLogo} alt="eStoreindie" className="site-logo-img" style={{height: '32px', width: 'auto'}} /></a>
+        <a href="/" className="nav-logo"><img src={siteLogo} alt="eStoreindie" className="site-logo-img" style={{ height: '32px', width: 'auto' }} /></a>
         <div className="ml-auto flex items-center gap-4">
           <a href="/cart" className="nav-utility nav-icon-btn" aria-label="Cart">
             <FaShoppingCart />
@@ -2019,7 +2019,7 @@ function VendorShopPage({ storefrontSlug, onAddToCart, cartCount = 0, cartItems 
           {customerSession?.id ? (
             <>
               <a href="/profile" className="nav-utility">Profile</a>
-              <button 
+              <button
                 type="button"
                 onClick={onLogout}
                 className="nav-utility"
@@ -2036,7 +2036,7 @@ function VendorShopPage({ storefrontSlug, onAddToCart, cartCount = 0, cartItems 
           )}
         </div>
       </div>
-      <section className="vendor-hero" style={{marginTop: '60px'}}>
+      <section className="vendor-hero" style={{ marginTop: '60px' }}>
         <div className="vendor-hero-orb vendor-hero-orb-blue" />
         <div className="vendor-hero-orb vendor-hero-orb-orange" />
         <div className="vendor-hero-inner">
@@ -2759,7 +2759,7 @@ function ProductDetailPage({ onAddToCart, onCartClick, cartCount = 0, cartItems 
           {customerSession?.id ? (
             <>
               <a href="/profile" className="nav-utility">Go to Profile</a>
-              <button 
+              <button
                 type="button"
                 onClick={onLogout}
                 className="nav-utility"
@@ -2834,7 +2834,7 @@ function ProductDetailPage({ onAddToCart, onCartClick, cartCount = 0, cartItems 
                 {(() => {
                   const cartItem = cartItems.find(item => String(item.id) === String(detailData.id || detailData.sku));
                   const inCart = !!cartItem;
-                  
+
                   if (!inCart) {
                     return (
                       <>
@@ -2869,7 +2869,7 @@ function ProductDetailPage({ onAddToCart, onCartClick, cartCount = 0, cartItems 
                       </>
                     );
                   }
-                  
+
                   return (
                     <>
                       <div className="flex items-center gap-3 rounded-lg border border-accent bg-accent/5 px-4 py-3">
@@ -3487,11 +3487,11 @@ function Header({ scrolled = false, showUtilityLinks = false, showHomeCta = fals
             {cartCount ? <span className="ml-2 text-[0.75rem] font-bold">{cartCount}</span> : null}
           </a>
         ) : null}
-        
+
         {showUtilityLinks && isLoggedIn ? (
           <>
             <a href="/profile" className="nav-utility">Profile</a>
-            <button 
+            <button
               type="button"
               onClick={onLogout}
               className="nav-utility"
@@ -3501,14 +3501,14 @@ function Header({ scrolled = false, showUtilityLinks = false, showHomeCta = fals
             </button>
           </>
         ) : null}
-        
+
         {showUtilityLinks && !isLoggedIn ? (
           <>
             <a href="/login" className="nav-utility">Login</a>
             <a href="/register" className="nav-utility nav-utility-accent">Register</a>
           </>
         ) : null}
-        
+
         {showHomeCta ? <a href="#onboarding" className="nav-cta">Start Selling →</a> : null}
       </div>
     </nav>
@@ -5225,22 +5225,20 @@ function AdminBlogPage() {
             <button
               type="button"
               onClick={() => setActiveTab("categories")}
-              className={`px-6 py-3 font-medium transition ${
-                activeTab === "categories"
+              className={`px-6 py-3 font-medium transition ${activeTab === "categories"
                   ? "border-b-2 border-accent text-accent"
                   : "text-muted hover:text-textc"
-              }`}
+                }`}
             >
               Categories
             </button>
             <button
               type="button"
               onClick={() => setActiveTab("posts")}
-              className={`px-6 py-3 font-medium transition ${
-                activeTab === "posts"
+              className={`px-6 py-3 font-medium transition ${activeTab === "posts"
                   ? "border-b-2 border-accent text-accent"
                   : "text-muted hover:text-textc"
-              }`}
+                }`}
             >
               Posts
             </button>
