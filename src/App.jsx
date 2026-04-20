@@ -106,6 +106,20 @@ const getVendorStorefrontSlugFromPath = () => {
   return vendorShopSegment === "vendor-shop" ? decodeURIComponent(slugSegment) : "";
 };
 
+const getBlogPostSlugFromPath = () => {
+  if (typeof window === "undefined") return "";
+  const parts = window.location.pathname.split("/");
+  if (parts[1] === "blog-details" && parts[2]) {
+    return decodeURIComponent(parts[2]);
+  }
+  return "";
+};
+
+const getQueryParam = (key) => {
+  if (typeof window === "undefined") return "";
+  return new URLSearchParams(window.location.search).get(key) || "";
+};
+
 const getStoredCustomerSession = () => {
   if (typeof window === "undefined") return null;
 
@@ -143,16 +157,216 @@ const storeCartItems = (items) => {
   window.localStorage.setItem(CUSTOMER_CART_STORAGE_KEY, JSON.stringify(items));
 };
 
+/**
+ * Cart Session Management (for tracking guest carts)
+ */
+const getStoredCartSession = () => {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem("estoreindie_cart_session");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+const storeCartSession = (session) => {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem("estoreindie_cart_session", JSON.stringify(session));
+};
+
+const clearCartSession = () => {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem("estoreindie_cart_session");
+};
+
+/**
+ * Cart API Functions
+ */
+const createOrGetCart = async (userId = null, sessionToken = null) => {
+  try {
+    if (userId) {
+      // Get current cart for logged-in user
+      const response = await fetch(`${SELLER_API_BASE_URL}/carts/current`, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          "X-Auth-User-Id": String(userId),
+        },
+      });
+
+      if (!response.ok) throw new Error("Failed to fetch cart");
+      const data = await response.json();
+      return data.cart;
+    } else if (sessionToken) {
+      // Get guest cart
+      const response = await fetch(`${SELLER_API_BASE_URL}/carts/current?session_token=${sessionToken}`, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      });
+
+      if (!response.ok) throw new Error("Failed to fetch cart");
+      const data = await response.json();
+      return data.cart;
+    } else {
+      // Create new guest cart
+      const response = await fetch(`${SELLER_API_BASE_URL}/carts`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({}),
+      });
+
+      if (!response.ok) throw new Error("Failed to create cart");
+      const data = await response.json();
+      return data.cart;
+    }
+  } catch (error) {
+    console.error("Cart API Error:", error);
+    return null;
+  }
+};
+
+const saveCartItemToDb = async (cart, item, userId = null, sessionToken = null) => {
+  try {
+    const url = `${SELLER_API_BASE_URL}/carts/${cart.id}/items`;
+    const headers = {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    };
+
+    if (userId) {
+      headers["X-Auth-User-Id"] = String(userId);
+    } else if (sessionToken) {
+      // Add session token to query
+      return fetch(`${url}?session_token=${sessionToken}`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          product_id: item.productId || null,
+          vendor_id: item.vendorId,
+          product_name: item.title,
+          product_sku: item.sku || null,
+          unit_price: item.numericPrice,
+          quantity: item.qty,
+          product_snapshot: {
+            vendor_slug: item.vendorSlug,
+            image: item.image,
+            meta: item.meta,
+          },
+        }),
+      }).then(r => r.json());
+    }
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        product_id: item.productId || null,
+        vendor_id: item.vendorId,
+        product_name: item.title,
+        product_sku: item.sku || null,
+        unit_price: item.numericPrice,
+        quantity: item.qty,
+        product_snapshot: {
+          vendor_slug: item.vendorSlug,
+          image: item.image,
+          meta: item.meta,
+        },
+      }),
+    });
+
+    if (!response.ok) throw new Error("Failed to save cart item");
+    return await response.json();
+  } catch (error) {
+    console.error("Save cart item error:", error);
+    return null;
+  }
+};
+
+const mergeGuestCartToUser = async (sessionToken, userId) => {
+  try {
+    const response = await fetch(`${SELLER_API_BASE_URL}/carts/merge-guest`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "X-Auth-User-Id": String(userId),
+      },
+      body: JSON.stringify({ session_token: sessionToken }),
+    });
+
+    if (!response.ok) throw new Error("Failed to merge cart");
+    return await response.json();
+  } catch (error) {
+    console.error("Merge cart error:", error);
+    return null;
+  }
+};
+
 const normalizeCartItem = (item, quantity = 1) => ({
-  id: item.id ?? `${item.title}-${item.vendor}`,
+  id: item.id ?? `${item.vendorId || "vendor"}-${item.productId || item.sku || item.title}`,
   title: item.title,
   vendor: item.vendor || "Marketplace Seller",
+  vendorId: item.vendorId ?? null,
+  vendorSlug: item.vendorSlug ?? "",
+  productId: item.productId ?? null,
+  sku: item.sku ?? "",
   price: item.price,
   numericPrice: item.numericPrice ?? (Number(String(item.price || 0).replace(/[^\d.]/g, "")) || 0),
   image: item.image || heroSectionImage,
   meta: item.meta || item.category || item.description || "Marketplace product",
   qty: quantity,
 });
+
+const calculateCheckoutTotals = (items, couponCode = "") => {
+  const subtotal = items.reduce((sum, item) => sum + (item.numericPrice * item.qty), 0);
+  const normalizedCoupon = couponCode.trim().toUpperCase();
+  const discount = normalizedCoupon === "SAVE10" ? Math.min(subtotal * 0.1, 350) : 0;
+  const delivery = items.length ? 120 : 0;
+  const taxes = Math.max(subtotal - discount, 0) * 0.18;
+  const total = Math.max(0, subtotal + delivery + taxes - discount);
+
+  return {
+    subtotal,
+    delivery,
+    discount,
+    taxes,
+    total,
+    appliedCoupon: discount > 0 ? normalizedCoupon : "",
+  };
+};
+
+const loadRazorpayScript = () =>
+  new Promise((resolve, reject) => {
+    if (typeof window === "undefined") {
+      reject(new Error("Window is not available."));
+      return;
+    }
+
+    if (window.Razorpay) {
+      resolve(window.Razorpay);
+      return;
+    }
+
+    const existingScript = document.querySelector('script[data-razorpay-checkout="true"]');
+
+    if (existingScript) {
+      existingScript.addEventListener("load", () => resolve(window.Razorpay), { once: true });
+      existingScript.addEventListener("error", () => reject(new Error("Unable to load Razorpay checkout.")), { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.dataset.razorpayCheckout = "true";
+    script.onload = () => resolve(window.Razorpay);
+    script.onerror = () => reject(new Error("Unable to load Razorpay checkout."));
+    document.body.appendChild(script);
+  });
 const sellerRegistrationInitialState = {
   name: "",
   phone: "",
@@ -449,6 +663,7 @@ function App() {
   const [customerSession, setCustomerSession] = useState(() => getStoredCustomerSession());
   const [cartItems, setCartItems] = useState(() => getStoredCartItems());
   const [showCartLoginPrompt, setShowCartLoginPrompt] = useState(false);
+  const [cartNotice, setCartNotice] = useState("");
   const cursorRef = useRef(null);
   const isAboutPage = typeof window !== "undefined" && window.location.pathname.startsWith("/about");
   const isContactPage = typeof window !== "undefined" && window.location.pathname.startsWith("/contact");
@@ -461,35 +676,131 @@ function App() {
   const isLoginPage = typeof window !== "undefined" && window.location.pathname.startsWith("/login");
   const isRegisterPage = typeof window !== "undefined" && window.location.pathname.startsWith("/register");
   const isProfilePage = typeof window !== "undefined" && window.location.pathname.startsWith("/profile");
+  const isAdminBlogPage = typeof window !== "undefined" && window.location.pathname.startsWith("/admin/blog");
   const isTermsPage = typeof window !== "undefined" && window.location.pathname.startsWith("/terms-conditions");
   const isPrivacyPage = typeof window !== "undefined" && window.location.pathname.startsWith("/privacy-policy");
   const isRefundPage = typeof window !== "undefined" && window.location.pathname.startsWith("/refund-policy");
   const isVendorShopPage = typeof window !== "undefined" && window.location.pathname.startsWith("/vendor-shop");
   const vendorStorefrontSlug = getVendorStorefrontSlugFromPath();
-  const isHomePage = !isAboutPage && !isContactPage && !isBlogDetailPage && !isBlogPage && !isProductDetailPage && !isProductsPage && !isCartPage && !isCheckoutPage && !isLoginPage && !isRegisterPage && !isProfilePage && !isTermsPage && !isPrivacyPage && !isRefundPage && !isVendorShopPage;
+  const isHomePage = !isAboutPage && !isContactPage && !isBlogDetailPage && !isBlogPage && !isProductDetailPage && !isProductsPage && !isCartPage && !isCheckoutPage && !isLoginPage && !isRegisterPage && !isProfilePage && !isAdminBlogPage && !isTermsPage && !isPrivacyPage && !isRefundPage && !isVendorShopPage;
   const statsRef = useRef(null);
   const onboardingRef = useRef(null);
 
-  const persistCustomerSession = (user) => {
+  const persistCustomerSession = async (user) => {
     setCustomerSession(user);
     storeCustomerSession(user);
+
+    // On login: merge guest cart to user cart
+    if (user?.id) {
+      const cartSession = getStoredCartSession();
+      if (cartSession?.session_token && cartSession.session_token !== user.id) {
+        try {
+          const mergeResponse = await mergeGuestCartToUser(cartSession.session_token, user.id);
+          if (mergeResponse?.cart) {
+            // Clear local storage cart and save merged one
+            storeCartItems([]);
+            clearCartSession();
+            
+            // Update local cart with merged items
+            const mergedItems = mergeResponse.cart.items.map(item => ({
+              id: item.id,
+              title: item.product_name,
+              vendor: cartSession.vendor || "Merged Vendor",
+              vendorId: item.vendor_id,
+              vendorSlug: cartSession.vendorSlug || "",
+              productId: item.product_id,
+              sku: item.product_sku,
+              price: formatCurrency(item.unit_price),
+              numericPrice: item.unit_price,
+              image: item.product_snapshot?.image || heroSectionImage,
+              meta: item.product_snapshot?.meta || "Marketplace product",
+              qty: item.quantity,
+            }));
+            
+            setCartItems(mergedItems);
+            storeCartItems(mergedItems);
+          }
+        } catch (error) {
+          console.error("Failed to merge guest cart:", error);
+          // Continue anyway - user can still use local cart
+        }
+      }
+    }
   };
 
-  const addToCart = (item, quantity = 1) => {
+  const logoutCustomerSession = () => {
+    clearCustomerSession();
+    setCustomerSession(null);
+    storeCartItems([]);
+    setCartItems([]);
+    if (typeof window !== "undefined") {
+      window.location.assign("/login");
+    }
+  };
+
+  const addToCart = async (item, quantity = 1) => {
     const normalized = normalizeCartItem(item, quantity);
 
+    if (normalized.vendorId && cartItems.length) {
+      const activeVendorId = cartItems[0]?.vendorId;
+
+      if (activeVendorId && String(activeVendorId) !== String(normalized.vendorId)) {
+        setCartNotice("Checkout currently supports one vendor storefront at a time. Clear the cart before adding products from another vendor.");
+        return false;
+      }
+    }
+
+    // Update local cart state
     setCartItems((current) => {
       const next = current.some((cartItem) => String(cartItem.id) === String(normalized.id))
         ? current.map((cartItem) =>
-            String(cartItem.id) === String(normalized.id)
-              ? { ...cartItem, qty: cartItem.qty + quantity }
-              : cartItem
-          )
+          String(cartItem.id) === String(normalized.id)
+            ? { ...cartItem, qty: cartItem.qty + quantity }
+            : cartItem
+        )
         : [...current, normalized];
 
       storeCartItems(next);
+      
+      // Save to database (both guest and logged-in users)
+      (async () => {
+        try {
+          let cartSession = getStoredCartSession();
+          
+          if (!cartSession) {
+            // Create new cart (guest or user)
+            const createResponse = await createOrGetCart(customerSession?.id);
+            if (createResponse) {
+              cartSession = {
+                id: createResponse.id,
+                session_token: createResponse.session_token,
+                vendor_id: normalized.vendorId,
+              };
+              storeCartSession(cartSession);
+            }
+          }
+
+          if (cartSession?.id) {
+            // Save item to cart
+            await saveCartItemToDb(
+              cartSession,
+              normalized,
+              customerSession?.id || null,
+              cartSession.session_token
+            );
+            console.log("✅ Item saved to database!");
+          }
+        } catch (error) {
+          console.error("Failed to save to database:", error);
+          // Continue anyway - cart is still in localStorage
+        }
+      })();
+
       return next;
     });
+
+    setCartNotice("");
+    return true;
   };
 
   const updateCartItemQuantity = (id, nextQuantity) => {
@@ -497,8 +808,8 @@ function App() {
       const next = nextQuantity <= 0
         ? current.filter((item) => String(item.id) !== String(id))
         : current.map((item) =>
-            String(item.id) === String(id) ? { ...item, qty: nextQuantity } : item
-          );
+          String(item.id) === String(id) ? { ...item, qty: nextQuantity } : item
+        );
 
       storeCartItems(next);
       return next;
@@ -513,12 +824,13 @@ function App() {
     });
   };
 
-  const openCart = () => {
-    if (!customerSession) {
-      setShowCartLoginPrompt(true);
-      return;
-    }
+  const clearCart = () => {
+    setCartItems([]);
+    setCartNotice("");
+    storeCartItems([]);
+  };
 
+  const openCart = () => {
     if (typeof window !== "undefined") {
       window.location.assign("/cart");
     }
@@ -762,40 +1074,37 @@ function App() {
   };
 
   if (isAboutPage) {
-    return <AboutPage onCartClick={handleCartLinkClick} cartCount={cartItems.reduce((sum, item) => sum + item.qty, 0)} />;
+    return <AboutPage onCartClick={handleCartLinkClick} cartCount={cartItems.reduce((sum, item) => sum + item.qty, 0)} customerSession={customerSession} onLogout={logoutCustomerSession} />;
   }
 
   if (isContactPage) {
-    return <ContactPage onCartClick={handleCartLinkClick} cartCount={cartItems.reduce((sum, item) => sum + item.qty, 0)} />;
+    return <ContactPage onCartClick={handleCartLinkClick} cartCount={cartItems.reduce((sum, item) => sum + item.qty, 0)} customerSession={customerSession} onLogout={logoutCustomerSession} />;
   }
 
   if (isBlogDetailPage) {
-    return <BlogDetailPage onCartClick={handleCartLinkClick} cartCount={cartItems.reduce((sum, item) => sum + item.qty, 0)} />;
+    return <BlogDetailPage onCartClick={handleCartLinkClick} cartCount={cartItems.reduce((sum, item) => sum + item.qty, 0)} customerSession={customerSession} onLogout={logoutCustomerSession} />;
   }
 
   if (isBlogPage) {
-    return <BlogPage onCartClick={handleCartLinkClick} cartCount={cartItems.reduce((sum, item) => sum + item.qty, 0)} />;
+    return <BlogPage onCartClick={handleCartLinkClick} cartCount={cartItems.reduce((sum, item) => sum + item.qty, 0)} customerSession={customerSession} onLogout={logoutCustomerSession} />;
   }
 
   if (isProductDetailPage) {
-    return <ProductDetailPage onAddToCart={addToCart} onCartClick={handleCartLinkClick} />;
+    return <ProductDetailPage onAddToCart={addToCart} onCartClick={handleCartLinkClick} cartCount={cartItems.reduce((sum, item) => sum + item.qty, 0)} cartItems={cartItems} onUpdateQty={updateCartItemQuantity} onRemoveItem={removeCartItem} customerSession={customerSession} onLogout={logoutCustomerSession} />;
   }
 
   if (isProductsPage) {
-    return <ProductListingPage onAddToCart={addToCart} onCartClick={handleCartLinkClick} cartCount={cartItems.reduce((sum, item) => sum + item.qty, 0)} />;
+    return <ProductListingPage onAddToCart={addToCart} onCartClick={handleCartLinkClick} cartCount={cartItems.reduce((sum, item) => sum + item.qty, 0)} cartItems={cartItems} onUpdateQty={updateCartItemQuantity} onRemoveItem={removeCartItem} customerSession={customerSession} onLogout={logoutCustomerSession} />;
   }
 
   if (isCartPage) {
     return (
-      <>
-        {!customerSession ? <CartLoginPrompt onClose={() => window.location.assign("/products")} /> : null}
-        <CartPage cartItems={cartItems} onCartClick={handleCartLinkClick} onUpdateQty={updateCartItemQuantity} onRemoveItem={removeCartItem} />
-      </>
+      <CartPage cartItems={cartItems} cartNotice={cartNotice} onCartClick={handleCartLinkClick} onUpdateQty={updateCartItemQuantity} onRemoveItem={removeCartItem} customerSession={customerSession} onLogout={logoutCustomerSession} />
     );
   }
 
   if (isCheckoutPage) {
-    return <CheckoutPage cartItems={cartItems} onCartClick={handleCartLinkClick} />;
+    return <CheckoutPage cartItems={cartItems} customerSession={customerSession} onCartClick={handleCartLinkClick} onOrderPlaced={clearCart} />;
   }
 
   if (isLoginPage) {
@@ -808,6 +1117,10 @@ function App() {
 
   if (isProfilePage) {
     return <ProfilePage />;
+  }
+
+  if (isAdminBlogPage) {
+    return <AdminBlogPage />;
   }
 
   if (isTermsPage) {
@@ -823,7 +1136,7 @@ function App() {
   }
 
   if (isVendorShopPage) {
-    return <VendorShopPage storefrontSlug={vendorStorefrontSlug} onAddToCart={addToCart} />;
+    return <VendorShopPage storefrontSlug={vendorStorefrontSlug} onAddToCart={addToCart} cartCount={cartItems.reduce((sum, item) => sum + item.qty, 0)} cartItems={cartItems} onUpdateQty={updateCartItemQuantity} onRemoveItem={removeCartItem} customerSession={customerSession} onLogout={logoutCustomerSession} />;
   }
 
   return (
@@ -846,9 +1159,12 @@ function App() {
 
       <Header
         scrolled={isScrolled}
+        showUtilityLinks
         showHomeCta
         cartCount={cartItems.reduce((sum, item) => sum + item.qty, 0)}
         onCartClick={handleCartLinkClick}
+        customerSession={customerSession}
+        onLogout={logoutCustomerSession}
       />
 
       <section id="hero" className="section-shell relative flex min-h-screen items-center overflow-hidden bg-white pt-[110px]">
@@ -1291,106 +1607,154 @@ const filterGroups = {
 const products = [
   {
     id: 1,
+    sku: "EST-001",
     title: "Jaipur Blue Pottery Vase Set",
     category: "Handicrafts",
+    filterCategory: "Handicrafts",
     price: "Rs. 2,499",
+    rawPrice: 2499,
     oldPrice: "Rs. 3,199",
     rating: "4.8",
     reviews: 124,
     vendor: "Priya Crafts",
+    vendorId: null,
+    vendorSlug: null,
     badge: "Best Seller",
     delivery: "Free Delivery",
+    description: "A handcrafted blue pottery set finished by Jaipur artisans.",
     image: "https://images.unsplash.com/photo-1517705008128-361805f42e86?w=900&auto=format&fit=crop&q=80",
   },
   {
     id: 2,
+    sku: "EST-002",
     title: "Pure Neem Wood Dining Collection",
     category: "Home Decor",
+    filterCategory: "Home Decor",
     price: "Rs. 5,899",
+    rawPrice: 5899,
     oldPrice: "Rs. 7,450",
     rating: "4.7",
     reviews: 86,
     vendor: "Bharat Living",
+    vendorId: null,
+    vendorSlug: null,
     badge: "Curated",
     delivery: "Express Dispatch",
+    description: "Premium neem wood dining furniture set.",
     image: "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=900&auto=format&fit=crop&q=80",
   },
   {
     id: 3,
+    sku: "EST-003",
     title: "Handwoven Linen Saree - Rose Sand",
     category: "Fashion",
+    filterCategory: "Fashion",
     price: "Rs. 3,290",
+    rawPrice: 3290,
     oldPrice: "Rs. 4,050",
     rating: "4.9",
     reviews: 208,
     vendor: "Loom Aura",
+    vendorId: null,
+    vendorSlug: null,
     badge: "Editor's Pick",
     delivery: "Pan India",
+    description: "Traditional handwoven linen saree in rose sand color.",
     image: "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?w=900&auto=format&fit=crop&q=80",
   },
   {
     id: 4,
+    sku: "EST-004",
     title: "Cold Pressed Wellness Oils Box",
     category: "Wellness",
+    filterCategory: "Wellness",
     price: "Rs. 1,799",
+    rawPrice: 1799,
     oldPrice: "Rs. 2,250",
     rating: "4.6",
     reviews: 67,
     vendor: "Ayura Roots",
+    vendorId: null,
+    vendorSlug: null,
     badge: "Organic",
     delivery: "Free Delivery",
+    description: "Set of cold-pressed wellness oils for daily wellness.",
     image: "https://images.unsplash.com/photo-1615485290382-441e4d049cb5?w=900&auto=format&fit=crop&q=80",
   },
   {
     id: 5,
+    sku: "EST-005",
     title: "Artisan Brass Pendant Lamp",
     category: "Home Decor",
+    filterCategory: "Home Decor",
     price: "Rs. 4,499",
+    rawPrice: 4499,
     oldPrice: "Rs. 5,700",
     rating: "4.8",
     reviews: 91,
     vendor: "Indie Habitat",
+    vendorId: null,
+    vendorSlug: null,
     badge: "Premium",
     delivery: "Express Dispatch",
+    description: "Handcrafted brass pendant lamp for interior styling.",
     image: "https://images.unsplash.com/photo-1513694203232-719a280e022f?w=900&auto=format&fit=crop&q=80",
   },
   {
     id: 6,
+    sku: "EST-006",
     title: "Farm Fresh Millet Snack Box",
     category: "Organic",
+    filterCategory: "Organic",
     price: "Rs. 899",
+    rawPrice: 899,
     oldPrice: "Rs. 1,199",
     rating: "4.5",
     reviews: 152,
     vendor: "Grain Story",
+    vendorId: null,
+    vendorSlug: null,
     badge: "Healthy Pick",
     delivery: "Pan India",
+    description: "Farm-fresh millet snack assortment.",
     image: "https://images.unsplash.com/photo-1547592180-85f173990554?w=900&auto=format&fit=crop&q=80",
   },
   {
     id: 7,
+    sku: "EST-007",
     title: "Minimal Leather Messenger Bag",
     category: "Fashion",
+    filterCategory: "Fashion",
     price: "Rs. 2,899",
+    rawPrice: 2899,
     oldPrice: "Rs. 3,499",
     rating: "4.7",
     reviews: 113,
     vendor: "Urban Tannery",
+    vendorId: null,
+    vendorSlug: null,
     badge: "Hot Deal",
     delivery: "Free Delivery",
+    description: "Minimalist leather messenger bag for everyday use.",
     image: "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=900&auto=format&fit=crop&q=80",
   },
   {
     id: 8,
+    sku: "EST-008",
     title: "Smart Aroma Diffuser Pro",
     category: "Electronics",
+    filterCategory: "Electronics",
     price: "Rs. 2,199",
+    rawPrice: 2199,
     oldPrice: "Rs. 2,890",
     rating: "4.4",
     reviews: 58,
     vendor: "Calm Circuit",
+    vendorId: null,
+    vendorSlug: null,
     badge: "New Launch",
     delivery: "Express Dispatch",
+    description: "Smart aroma diffuser with app control.",
     image: "https://images.unsplash.com/photo-1519642918688-7e43b19245d8?w=900&auto=format&fit=crop&q=80",
   },
 ];
@@ -1413,7 +1777,7 @@ const productFaqs = [
     a: "Our marketplace support team can help with recommendations, custom sourcing, dispatch questions, and vendor coordination for premium orders.",
   },
 ];
-function VendorShopPage({ storefrontSlug, onAddToCart }) {
+function VendorShopPage({ storefrontSlug, onAddToCart, cartCount = 0, cartItems = [], onUpdateQty, onRemoveItem, customerSession, onLogout }) {
   const [activeTab, setActiveTab] = useState("All Products");
   const [wishlist, setWishlist] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -1535,6 +1899,8 @@ function VendorShopPage({ storefrontSlug, onAddToCart }) {
 
     return {
       id: product.id,
+      slug: product.slug,
+      sku: product.sku,
       title: product.name,
       category: product.category?.name || vendorCategoryName,
       filterCategory: product.subcategory?.name || product.category?.name || "Catalog",
@@ -1550,6 +1916,8 @@ function VendorShopPage({ storefrontSlug, onAddToCart }) {
       description: product.short_description || `${product.name} from ${vendorDisplayName}.`,
       rawPrice: currentPrice,
       rawRating: Number(derivedRating),
+      vendorId: vendor?.id,
+      vendorSlug: vendor?.slug || storefrontSlug,
     };
   });
 
@@ -1640,7 +2008,35 @@ function VendorShopPage({ storefrontSlug, onAddToCart }) {
 
   return (
     <div className="bg-light text-textc">
-      <section className="vendor-hero">
+      <div className="fixed top-0 left-0 right-0 z-40 flex items-center justify-between gap-6 border-b border-borderc bg-white/95 px-[5%] py-4 backdrop-blur-[16px]">
+        <a href="/" className="nav-logo"><img src={siteLogo} alt="eStoreindie" className="site-logo-img" style={{height: '32px', width: 'auto'}} /></a>
+        <div className="ml-auto flex items-center gap-4">
+          <a href="/cart" className="nav-utility nav-icon-btn" aria-label="Cart">
+            <FaShoppingCart />
+            {cartCount ? <span className="ml-2 text-[0.75rem] font-bold">{cartCount}</span> : null}
+          </a>
+
+          {customerSession?.id ? (
+            <>
+              <a href="/profile" className="nav-utility">Profile</a>
+              <button 
+                type="button"
+                onClick={onLogout}
+                className="nav-utility"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+              >
+                Logout
+              </button>
+            </>
+          ) : (
+            <>
+              <a href="/login" className="nav-utility">Login</a>
+              <a href="/register" className="nav-utility nav-utility-accent">Register</a>
+            </>
+          )}
+        </div>
+      </div>
+      <section className="vendor-hero" style={{marginTop: '60px'}}>
         <div className="vendor-hero-orb vendor-hero-orb-blue" />
         <div className="vendor-hero-orb vendor-hero-orb-orange" />
         <div className="vendor-hero-inner">
@@ -1753,6 +2149,8 @@ function VendorShopPage({ storefrontSlug, onAddToCart }) {
               ) : null}
               {visibleProducts.map((product, index) => {
                 const liked = wishlist.includes(product.id);
+                const cartItem = cartItems.find(item => String(item.id) === String(product.id));
+                const inCart = !!cartItem;
                 return (
                   <article key={product.id} className={"product-card anim go d" + ((index % 4) + 1)}>
                     <div className="product-card-media">
@@ -1779,25 +2177,46 @@ function VendorShopPage({ storefrontSlug, onAddToCart }) {
                         <span>{product.oldPrice}</span>
                       </div>
                       <div className="card-actions">
-                        <button
-                          type="button"
-                          className="btn-primary"
-                          onClick={() =>
-                            onAddToCart?.({
-                              id: product.id,
-                              title: product.title,
-                              vendor: product.vendor,
-                              price: product.price,
-                              numericPrice: product.rawPrice,
-                              image: product.image,
-                              meta: product.description,
-                              category: product.filterCategory,
-                            })
-                          }
-                        >
-                          Add to Cart
-                        </button>
-                        <a href="/product-details" className="mini-link">View Details</a>
+                        {!inCart ? (
+                          <>
+                            <button
+                              type="button"
+                              className="btn-primary"
+                              onClick={() =>
+                                onAddToCart?.({
+                                  id: product.id,
+                                  title: product.title,
+                                  vendor: product.vendor,
+                                  vendorId: product.vendorId,
+                                  vendorSlug: product.vendorSlug,
+                                  productId: product.id,
+                                  sku: product.sku,
+                                  price: product.price,
+                                  numericPrice: product.rawPrice,
+                                  image: product.image,
+                                  meta: product.description,
+                                  category: product.filterCategory,
+                                })
+                              }
+                            >
+                              Add to Cart
+                            </button>
+                            <a href={`/product-details?vendor=${encodeURIComponent(product.vendorSlug)}&product=${encodeURIComponent(product.slug || product.id)}`} className="mini-link">View Details</a>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-2 rounded-lg border border-accent bg-accent/5 px-3 py-2">
+                              <button type="button" className="text-accent hover:text-accent/80" onClick={() => onUpdateQty?.(cartItem.id, cartItem.qty - 1)}>
+                                <FaMinus size={14} />
+                              </button>
+                              <span className="min-w-[30px] text-center font-bold text-accent">{cartItem.qty}</span>
+                              <button type="button" className="text-accent hover:text-accent/80" onClick={() => onUpdateQty?.(cartItem.id, cartItem.qty + 1)}>
+                                <FaPlus size={14} />
+                              </button>
+                            </div>
+                            <button type="button" className="mini-link" onClick={() => onRemoveItem?.(cartItem.id)}>Remove</button>
+                          </>
+                        )}
                       </div>
                     </div>
                   </article>
@@ -1811,7 +2230,7 @@ function VendorShopPage({ storefrontSlug, onAddToCart }) {
   );
 }
 
-function ProductListingPage({ onAddToCart, onCartClick, cartCount = 0 }) {
+function ProductListingPage({ onAddToCart, onCartClick, cartCount = 0, cartItems = [], onUpdateQty, onRemoveItem, customerSession, onLogout }) {
   const [activeCategory, setActiveCategory] = useState("All");
   const [wishlist, setWishlist] = useState([]);
   const [openSupportFaq, setOpenSupportFaq] = useState(0);
@@ -1893,7 +2312,7 @@ function ProductListingPage({ onAddToCart, onCartClick, cartCount = 0 }) {
 
   return (
     <div className="bg-light text-textc">
-      <Header scrolled showUtilityLinks onCartClick={onCartClick} cartCount={cartCount} />
+      <Header scrolled showUtilityLinks onCartClick={onCartClick} cartCount={cartCount} customerSession={customerSession} onLogout={logoutCustomerSession} />
 
       <section className="product-hero section-shell pt-[120px]">
         <div className="product-hero-bg" />
@@ -1974,6 +2393,8 @@ function ProductListingPage({ onAddToCart, onCartClick, cartCount = 0 }) {
             <div className="product-grid">
               {visibleProducts.map((product, index) => {
                 const liked = wishlist.includes(product.id);
+                const cartItem = cartItems.find(item => String(item.id) === String(product.id));
+                const inCart = !!cartItem;
                 return (
                   <article key={product.id} className={`product-card anim go d${(index % 4) + 1}`}>
                     <div className="product-card-media">
@@ -1999,24 +2420,46 @@ function ProductListingPage({ onAddToCart, onCartClick, cartCount = 0 }) {
                         <span>{product.oldPrice}</span>
                       </div>
                       <div className="card-actions">
-                        <button
-                          type="button"
-                          className="btn-primary"
-                          onClick={() =>
-                            onAddToCart?.({
-                              id: product.id,
-                              title: product.title,
-                              vendor: product.vendor,
-                              price: product.price,
-                              image: product.image,
-                              meta: product.category,
-                              category: product.category,
-                            })
-                          }
-                        >
-                          Add to Cart
-                        </button>
-                        <a href="/product-details" className="mini-link">View Details</a>
+                        {!inCart ? (
+                          <>
+                            <button
+                              type="button"
+                              className="btn-primary"
+                              onClick={() =>
+                                onAddToCart?.({
+                                  id: product.id,
+                                  title: product.title,
+                                  vendor: product.vendor,
+                                  vendorId: product.vendorId,
+                                  vendorSlug: product.vendorSlug,
+                                  productId: product.id,
+                                  sku: product.sku,
+                                  price: product.price,
+                                  numericPrice: product.rawPrice,
+                                  image: product.image,
+                                  meta: product.description,
+                                  category: product.filterCategory,
+                                })
+                              }
+                            >
+                              Add to Cart
+                            </button>
+                            <a href="/product-details" className="mini-link">View Details</a>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-2 rounded-lg border border-accent bg-accent/5 px-3 py-2">
+                              <button type="button" className="text-accent hover:text-accent/80" onClick={() => onUpdateQty?.(cartItem.id, cartItem.qty - 1)}>
+                                <FaMinus size={14} />
+                              </button>
+                              <span className="min-w-[30px] text-center font-bold text-accent">{cartItem.qty}</span>
+                              <button type="button" className="text-accent hover:text-accent/80" onClick={() => onUpdateQty?.(cartItem.id, cartItem.qty + 1)}>
+                                <FaPlus size={14} />
+                              </button>
+                            </div>
+                            <button type="button" className="mini-link" onClick={() => onRemoveItem?.(cartItem.id)}>Remove</button>
+                          </>
+                        )}
                       </div>
                     </div>
                   </article>
@@ -2101,13 +2544,17 @@ function ProductListingPage({ onAddToCart, onCartClick, cartCount = 0 }) {
 }
 
 const productDetailData = {
+  id: 1,
   title: "Jaipur Blue Pottery Vase Set",
   category: "Handicrafts / Home Decor",
   price: "Rs. 2,499",
+  numericPrice: 2499,
   oldPrice: "Rs. 3,199",
   rating: "4.8",
   reviews: 124,
   vendor: "Priya Crafts Studio",
+  vendorId: null,
+  vendorSlug: null,
   sku: "EST-IND-2048",
   dispatch: "Ships in 24 hours",
   short: "A handcrafted blue pottery set finished by Jaipur artisans, designed to add premium Indian character to modern and heritage-inspired interiors.",
@@ -2159,28 +2606,185 @@ const detailReviews = [
     text: "We ordered multiple sets for a hospitality project. The artisan finish was consistent and support during dispatch was smooth.",
   },
 ];
-function ProductDetailPage({ onAddToCart, onCartClick }) {
+const buildVendorProductDetailData = (product, storefront) => {
+  const vendor = storefront?.vendor || {};
+  const vendorDisplayName = vendor.store_name || vendor.business_name || vendor.name || product.vendor_name || "Vendor Store";
+  const currentPrice = Number(product.sale_price ?? product.price ?? 0);
+  const originalPrice = Number(product.price ?? currentPrice);
+  const image = resolveStorefrontMediaUrl(product.image_path);
+  const productImages = [image, `${image}#detail-2`, `${image}#detail-3`, `${image}#detail-4`];
+
+  return {
+    id: product.id,
+    slug: product.slug,
+    vendorId: vendor.id,
+    vendorSlug: vendor.slug,
+    title: product.name,
+    category: [product.category?.name, product.subcategory?.name].filter(Boolean).join(" / ") || "Vendor Collection",
+    price: formatCurrency(currentPrice),
+    numericPrice: currentPrice,
+    oldPrice: originalPrice > currentPrice ? formatCurrency(originalPrice) : "",
+    rating: product.is_featured ? "4.9" : "4.7",
+    reviews: product.is_featured ? 89 : 41,
+    vendor: vendorDisplayName,
+    sku: product.sku || `SKU-${product.id}`,
+    dispatch: Number(product.stock || 0) > 0 ? "Ships in 24-48 hours" : "Currently out of stock",
+    short: product.short_description || `${product.name} is available from ${vendorDisplayName}.`,
+    banner: image,
+    images: productImages,
+    highlights: [
+      `Available from ${vendorDisplayName}`,
+      product.is_featured ? "Featured on this storefront" : "Sourced from the vendor storefront catalog",
+      Number(product.stock || 0) > 0 ? `${product.stock} units currently in stock` : "Stock will refresh soon",
+      "Secure Razorpay checkout supported",
+    ],
+    specs: [
+      ["Vendor", vendorDisplayName],
+      ["SKU", product.sku || `SKU-${product.id}`],
+      ["Category", product.category?.name || "General"],
+      ["Sub-category", product.subcategory?.name || "General"],
+      ["Stock", String(product.stock ?? 0)],
+      ["Checkout", "Razorpay"],
+    ],
+    description: [
+      product.short_description || `${product.name} is listed under ${vendorDisplayName}.`,
+      "This product detail page is connected to the dedicated vendor storefront, so cart and checkout keep the correct vendor reference.",
+      Number(product.stock || 0) > 0
+        ? "Add it to cart and complete payment through Razorpay while preserving the storefront source."
+        : "This item is currently unavailable for purchase, but the storefront context is still preserved.",
+    ],
+  };
+};
+
+function ProductDetailPage({ onAddToCart, onCartClick, cartCount = 0, cartItems = [], onUpdateQty, onRemoveItem, customerSession, onLogout }) {
+  const vendorSlug = getQueryParam("vendor");
+  const productSlug = getQueryParam("product");
+  const [detailData, setDetailData] = useState(productDetailData);
+  const [detailLoading, setDetailLoading] = useState(Boolean(vendorSlug && productSlug));
+  const [detailError, setDetailError] = useState("");
   const [activeImage, setActiveImage] = useState(productDetailData.images[0]);
   const [openDetailFaq, setOpenDetailFaq] = useState(0);
   const [quantity, setQuantity] = useState(1);
+
+  useEffect(() => {
+    setActiveImage(detailData.images[0]);
+  }, [detailData]);
+
+  useEffect(() => {
+    if (!vendorSlug || !productSlug) {
+      setDetailLoading(false);
+      return undefined;
+    }
+
+    const controller = new AbortController();
+
+    const loadProductDetail = async () => {
+      setDetailLoading(true);
+      setDetailError("");
+
+      try {
+        const response = await fetch(`${SELLER_API_BASE_URL}/vendor-storefront/${vendorSlug}`, {
+          signal: controller.signal,
+          headers: {
+            Accept: "application/json",
+          },
+        });
+
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(payload.message || "Unable to load this vendor product right now.");
+        }
+
+        const matchedProduct = (payload.products || []).find((item) =>
+          String(item.slug) === String(productSlug) || String(item.id) === String(productSlug)
+        );
+
+        if (!matchedProduct) {
+          throw new Error("This vendor product could not be found.");
+        }
+
+        setDetailData(buildVendorProductDetailData(matchedProduct, payload));
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          setDetailError(error.message || "Unable to load this vendor product right now.");
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setDetailLoading(false);
+        }
+      }
+    };
+
+    loadProductDetail();
+
+    return () => controller.abort();
+  }, [productSlug, vendorSlug]);
+
+  if (detailLoading) {
+    return (
+      <div className="bg-light text-textc">
+        <section className="section-shell pt-[140px]">
+          <div className="vendor-about-card max-w-[900px]">
+            <span className="filter-label">Loading product</span>
+            <h3>We are preparing the vendor product details.</h3>
+            <p>The storefront context is being fetched so cart and checkout stay attached to the correct vendor.</p>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  if (detailError) {
+    return (
+      <div className="bg-light text-textc">
+        <section className="section-shell pt-[140px]">
+          <div className="vendor-about-card max-w-[900px]">
+            <span className="filter-label">Product unavailable</span>
+            <h3>We could not open this product detail page.</h3>
+            <p>{detailError}</p>
+            <div className="card-actions mt-6">
+              <a href={vendorSlug ? `/vendor-shop/${vendorSlug}` : "/products"} className="btn-primary">Back to Products</a>
+            </div>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-light text-textc">
       <section className="section-shell pb-0 pt-6">
         <div className="detail-topbar anim go">
-          <a href="/profile" className="nav-utility">Go to Profile</a>
-          <a href="/login" className="nav-utility">Login</a>
-          <a href="/register" className="nav-utility nav-utility-accent">Signup</a>
+          {customerSession?.id ? (
+            <>
+              <a href="/profile" className="nav-utility">Go to Profile</a>
+              <button 
+                type="button"
+                onClick={onLogout}
+                className="nav-utility"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+              >
+                Logout
+              </button>
+            </>
+          ) : (
+            <>
+              <a href="/login" className="nav-utility">Login</a>
+              <a href="/register" className="nav-utility nav-utility-accent">Signup</a>
+            </>
+          )}
           <a href="/cart" className="nav-utility nav-icon-btn" aria-label="Cart" onClick={onCartClick}>
             <FaShoppingCart />
+            {cartCount ? <span className="ml-2 text-[0.75rem] font-bold">{cartCount}</span> : null}
           </a>
         </div>
         <div className="detail-breadcrumbs anim go">
           <a href="/">Home</a>
           <span>/</span>
-          <a href="/products">Products</a>
+          <a href={detailData.vendorSlug ? `/vendor-shop/${detailData.vendorSlug}` : "/products"}>{detailData.vendorSlug ? "Vendor Shop" : "Products"}</a>
           <span>/</span>
-          <span>{productDetailData.title}</span>
+          <span>{detailData.title}</span>
         </div>
       </section>
 
@@ -2188,10 +2792,10 @@ function ProductDetailPage({ onAddToCart, onCartClick }) {
         <div className="detail-layout">
           <div className="detail-gallery anim sl go">
             <div className="detail-main-image">
-              <img src={activeImage} alt={productDetailData.title} />
+              <img src={activeImage} alt={detailData.title} />
             </div>
             <div className="detail-thumb-row">
-              {productDetailData.images.map((image) => (
+              {detailData.images.map((image) => (
                 <button key={image} type="button" className={`detail-thumb ${activeImage === image ? "active" : ""}`} onClick={() => setActiveImage(image)}>
                   <img src={image} alt="Product view" />
                 </button>
@@ -2200,56 +2804,97 @@ function ProductDetailPage({ onAddToCart, onCartClick }) {
           </div>
 
           <div className="detail-content anim sr go">
-            <span className="filter-label">{productDetailData.category}</span>
-            <h2 className="detail-title">{productDetailData.title}</h2>
-            <p className="detail-summary">{productDetailData.short}</p>
+            <span className="filter-label">{detailData.category}</span>
+            <h2 className="detail-title">{detailData.title}</h2>
+            <p className="detail-summary">{detailData.short}</p>
 
             <div className="detail-rating-row">
-              <span className="rating-pill">{productDetailData.rating} ★</span>
-              <span>{productDetailData.reviews} verified reviews</span>
-              <span>{productDetailData.dispatch}</span>
+              <span className="rating-pill">{detailData.rating} ★</span>
+              <span>{detailData.reviews} verified reviews</span>
+              <span>{detailData.dispatch}</span>
             </div>
 
             <div className="detail-price-row">
-              <strong>{productDetailData.price}</strong>
-              <span>{productDetailData.oldPrice}</span>
+              <strong>{detailData.price}</strong>
+              <span>{detailData.oldPrice}</span>
             </div>
 
             <div className="detail-action-card">
               <div className="detail-action-grid">
                 <div>
                   <span className="detail-meta-label">Vendor</span>
-                  <strong>{productDetailData.vendor}</strong>
+                  <strong>{detailData.vendor}</strong>
                 </div>
                 <div>
                   <span className="detail-meta-label">SKU</span>
-                  <strong>{productDetailData.sku}</strong>
+                  <strong>{detailData.sku}</strong>
                 </div>
               </div>
               <div className="detail-cta-row">
-                <div className="quantity-selector">
-                  <button type="button" onClick={() => setQuantity((current) => Math.max(1, current - 1))}>-</button>
-                  <span>{quantity}</span>
-                  <button type="button" onClick={() => setQuantity((current) => current + 1)}>+</button>
-                </div>
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={() =>
-                    onAddToCart?.({
-                      id: productDetailData.sku,
-                      title: productDetailData.title,
-                      vendor: productDetailData.vendor,
-                      price: productDetailData.price,
-                      image: activeImage,
-                      meta: productDetailData.category,
-                      category: productDetailData.category,
-                    }, quantity)
+                {(() => {
+                  const cartItem = cartItems.find(item => String(item.id) === String(detailData.id || detailData.sku));
+                  const inCart = !!cartItem;
+                  
+                  if (!inCart) {
+                    return (
+                      <>
+                        <div className="quantity-selector">
+                          <button type="button" onClick={() => setQuantity((current) => Math.max(1, current - 1))}>-</button>
+                          <span>{quantity}</span>
+                          <button type="button" onClick={() => setQuantity((current) => current + 1)}>+</button>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn-primary"
+                          onClick={() =>
+                            onAddToCart?.({
+                              id: detailData.id || detailData.sku,
+                              title: detailData.title,
+                              vendor: detailData.vendor,
+                              vendorId: detailData.vendorId ?? null,
+                              vendorSlug: detailData.vendorSlug ?? "",
+                              productId: detailData.id ?? null,
+                              sku: detailData.sku,
+                              price: detailData.price,
+                              numericPrice: detailData.numericPrice ?? (Number(String(detailData.price || 0).replace(/[^\d.]/g, "")) || 0),
+                              image: activeImage,
+                              meta: detailData.category,
+                              category: detailData.category,
+                            }, quantity)
+                          }
+                        >
+                          Add {quantity} to Cart
+                        </button>
+                        <a href="#contact-form" className="btn-outline">Enquire Now</a>
+                      </>
+                    );
                   }
-                >
-                  Add {quantity} to Cart
-                </button>
-                <a href="#contact-form" className="btn-outline">Enquire Now</a>
+                  
+                  return (
+                    <>
+                      <div className="flex items-center gap-3 rounded-lg border border-accent bg-accent/5 px-4 py-3">
+                        <button type="button" className="text-accent hover:text-accent/80 font-bold" onClick={() => onUpdateQty?.(cartItem.id, cartItem.qty - 1)}>
+                          <FaMinus size={18} />
+                        </button>
+                        <div className="flex flex-col items-center">
+                          <span className="text-sm text-muted">Quantity</span>
+                          <span className="text-2xl font-bold text-accent">{cartItem.qty}</span>
+                        </div>
+                        <button type="button" className="text-accent hover:text-accent/80 font-bold" onClick={() => onUpdateQty?.(cartItem.id, cartItem.qty + 1)}>
+                          <FaPlus size={18} />
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        onClick={() => onRemoveItem?.(cartItem.id)}
+                      >
+                        Remove from Cart
+                      </button>
+                      <a href="#contact-form" className="btn-outline">Enquire Now</a>
+                    </>
+                  );
+                })()}
               </div>
             </div>
 
@@ -2257,7 +2902,7 @@ function ProductDetailPage({ onAddToCart, onCartClick }) {
               <div className="detail-panel">
                 <h3>Highlights</h3>
                 <ul>
-                  {productDetailData.highlights.map((item) => (
+                  {detailData.highlights.map((item) => (
                     <li key={item}><FaCheck className="text-accent" />{item}</li>
                   ))}
                 </ul>
@@ -2265,7 +2910,7 @@ function ProductDetailPage({ onAddToCart, onCartClick }) {
               <div className="detail-panel">
                 <h3>Specifications</h3>
                 <div className="spec-grid">
-                  {productDetailData.specs.map(([label, value]) => (
+                  {detailData.specs.map(([label, value]) => (
                     <div key={label} className="spec-item">
                       <span>{label}</span>
                       <strong>{value}</strong>
@@ -2278,7 +2923,7 @@ function ProductDetailPage({ onAddToCart, onCartClick }) {
             <div className="detail-panel mt-6">
               <h3>Description</h3>
               <div className="detail-description">
-                {productDetailData.description.map((para) => (
+                {detailData.description.map((para) => (
                   <p key={para}>{para}</p>
                 ))}
               </div>
@@ -2408,10 +3053,10 @@ const contactCards = [
   ["Head Office", "Jaipur, Rajasthan", "Mon to Sat, 10 AM to 7 PM - remote-first support across India."],
 ];
 
-function AboutPage({ onCartClick, cartCount = 0 }) {
+function AboutPage({ onCartClick, cartCount = 0, customerSession, onLogout }) {
   return (
     <div className="bg-light text-textc">
-      <Header scrolled showUtilityLinks onCartClick={onCartClick} cartCount={cartCount} />
+      <Header scrolled showUtilityLinks onCartClick={onCartClick} cartCount={cartCount} customerSession={customerSession} onLogout={onLogout} />
 
       <section className="about-page-hero section-shell pt-[120px]">
         <div className="about-page-grid">
@@ -2548,10 +3193,10 @@ function AboutPage({ onCartClick, cartCount = 0 }) {
   );
 }
 
-function ContactPage({ onCartClick, cartCount = 0 }) {
+function ContactPage({ onCartClick, cartCount = 0, customerSession, onLogout }) {
   return (
     <div className="bg-light text-textc">
-      <Header scrolled showUtilityLinks onCartClick={onCartClick} cartCount={cartCount} />
+      <Header scrolled showUtilityLinks onCartClick={onCartClick} cartCount={cartCount} customerSession={customerSession} onLogout={onLogout} />
 
       <section className="contact-page-hero section-shell pt-[120px]">
         <div className="contact-page-grid">
@@ -2823,7 +3468,10 @@ function FooterBrand() {
   );
 }
 
-function Header({ scrolled = false, showUtilityLinks = false, showHomeCta = false, cartCount = 0, onCartClick }) {
+function Header({ scrolled = false, showUtilityLinks = false, showHomeCta = false, cartCount = 0, onCartClick, customerSession, onLogout }) {
+  // Show logout button when user is logged in, otherwise show login + register
+  const isLoggedIn = !!customerSession?.id;
+
   return (
     <nav className={`nav-shell ${scrolled ? "scrolled" : ""}`}>
       <a href="/" className="nav-logo"><img src={siteLogo} alt="eStoreindie" className="site-logo-img" /></a>
@@ -2839,9 +3487,28 @@ function Header({ scrolled = false, showUtilityLinks = false, showHomeCta = fals
             {cartCount ? <span className="ml-2 text-[0.75rem] font-bold">{cartCount}</span> : null}
           </a>
         ) : null}
-        {showUtilityLinks ? <a href="/profile" className="nav-utility">Profile</a> : null}
-        {showUtilityLinks ? <a href="/login" className="nav-utility">Login</a> : null}
-        {showUtilityLinks ? <a href="/register" className="nav-utility nav-utility-accent">Register</a> : null}
+        
+        {showUtilityLinks && isLoggedIn ? (
+          <>
+            <a href="/profile" className="nav-utility">Profile</a>
+            <button 
+              type="button"
+              onClick={onLogout}
+              className="nav-utility"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+            >
+              Logout
+            </button>
+          </>
+        ) : null}
+        
+        {showUtilityLinks && !isLoggedIn ? (
+          <>
+            <a href="/login" className="nav-utility">Login</a>
+            <a href="/register" className="nav-utility nav-utility-accent">Register</a>
+          </>
+        ) : null}
+        
         {showHomeCta ? <a href="#onboarding" className="nav-cta">Start Selling →</a> : null}
       </div>
     </nav>
@@ -2955,6 +3622,9 @@ function PolicyPage({ policy }) {
 
 function ProfilePage() {
   const [customerSession, setCustomerSession] = useState(() => getStoredCustomerSession());
+  const [userOrders, setUserOrders] = useState([]);
+  const [ordersLoading, setOrdersLoading] = useState(true);
+  const [ordersError, setOrdersError] = useState("");
 
   const handleLogout = () => {
     clearCustomerSession();
@@ -2963,6 +3633,52 @@ function ProfilePage() {
       window.location.assign("/login");
     }
   };
+
+  useEffect(() => {
+    if (!customerSession?.id) {
+      setOrdersLoading(false);
+      return;
+    }
+
+    const fetchUserOrders = async () => {
+      setOrdersLoading(true);
+      setOrdersError("");
+
+      try {
+        // Debug: check if token exists
+        if (!customerSession?.token) {
+          console.error("No token found in customer session:", customerSession);
+          setOrdersError("Authentication token not found. Please log in again.");
+          setOrdersLoading(false);
+          return;
+        }
+
+        const response = await fetch(`${SELLER_API_BASE_URL}/checkout/orders/user`, {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${customerSession.token}`,
+          },
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          console.error("API error response:", response.status, data);
+          throw new Error(data.message || `Failed to fetch orders (${response.status})`);
+        }
+
+        setUserOrders(data.orders || []);
+      } catch (error) {
+        setOrdersError(error.message || "Unable to fetch orders");
+        setUserOrders([]);
+      } finally {
+        setOrdersLoading(false);
+      }
+    };
+
+    fetchUserOrders();
+  }, [customerSession?.id]);
 
   if (!customerSession) {
     return (
@@ -3002,6 +3718,16 @@ function ProfilePage() {
     ? new Date(customerSession.created_at).toLocaleDateString("en-IN", { month: "long", year: "numeric" })
     : "Recently joined";
   const locationLabel = [customerSession.city, customerSession.address].filter(Boolean).join(", ");
+
+  // Dynamic profile stats based on orders
+  const totalOrders = userOrders.length;
+  const inTransitOrders = userOrders.filter(o => o.fulfillment_status === "shipped" || o.fulfillment_status === "processing").length;
+  const lifetimeSpend = userOrders.reduce((sum, order) => sum + (order.total_amount || 0), 0);
+  const dynamicProfileStats = [
+    { icon: FaBoxOpen, value: String(totalOrders), label: "Total orders", note: "From all marketplace vendors" },
+    { icon: FaTruck, value: String(inTransitOrders), label: "In transit", note: "On their way to you" },
+    { icon: FaRupeeSign, value: formatCurrency(lifetimeSpend), label: "Lifetime spend", note: "Purchases from verified sellers" },
+  ];
 
   return (
     <div className="bg-light text-textc">
@@ -3060,7 +3786,7 @@ function ProfilePage() {
               </p>
 
               <div className="profile-stats-grid">
-                {profileStats.map(({ icon: Icon, value, label, note }) => (
+                {dynamicProfileStats.map(({ icon: Icon, value, label, note }) => (
                   <div key={label} className="profile-stat-card anim go d2">
                     <div className="profile-stat-icon"><Icon /></div>
                     <strong>{value}</strong>
@@ -3137,28 +3863,43 @@ function ProfilePage() {
               </div>
 
               <div className="profile-order-list">
-                {profileOrders.map((order) => (
-                  <article key={order.id} className="profile-order-card">
-                    <div className="profile-order-main">
-                      <div className="profile-order-topline">
-                        <span>Order {order.id}</span>
-                        <strong>{order.price}</strong>
+                {ordersLoading ? (
+                  <div className="rounded-[22px] bg-light p-6">
+                    <p className="text-muted">Loading your orders...</p>
+                  </div>
+                ) : ordersError ? (
+                  <div className="rounded-[22px] bg-light p-6">
+                    <p className="text-red-600">{ordersError}</p>
+                  </div>
+                ) : !userOrders.length ? (
+                  <div className="rounded-[22px] bg-light p-6">
+                    <strong className="block text-[1rem] text-primary">No orders yet</strong>
+                    <p className="mt-2 text-[0.9rem] text-muted">Start shopping to place your first order.</p>
+                  </div>
+                ) : (
+                  userOrders.map((order) => (
+                    <article key={order.id} className="profile-order-card">
+                      <div className="profile-order-main">
+                        <div className="profile-order-topline">
+                          <span>Order {order.order_number}</span>
+                          <strong>{formatCurrency(order.total_amount)}</strong>
+                        </div>
+                        <h4>{order.items?.[0]?.product_name || "Marketplace Order"}</h4>
+                        <p>{order.vendor?.store_name || order.vendor?.business_name || "Unknown Vendor"}</p>
                       </div>
-                      <h4>{order.item}</h4>
-                      <p>{order.vendor}</p>
-                    </div>
 
-                    <div className="profile-order-meta">
-                      <div><FaCalendarAlt /><span>{order.date}</span></div>
-                      <div><FaClock /><span>{order.eta}</span></div>
-                      <div><FaCreditCard /><span>Paid online</span></div>
-                    </div>
+                      <div className="profile-order-meta">
+                        <div><FaCalendarAlt /><span>{order.placed_at ? new Date(order.placed_at).toLocaleDateString("en-IN") : "N/A"}</span></div>
+                        <div><FaClock /><span>{order.fulfillment_status || "Processing"}</span></div>
+                        <div><FaCreditCard /><span>{order.payment_gateway === "razorpay" ? "Razorpay" : order.payment_method || "Online"}</span></div>
+                      </div>
 
-                    <div className={`profile-order-status ${order.status.toLowerCase()}`}>
-                      {order.status}
-                    </div>
-                  </article>
-                ))}
+                      <div className={`profile-order-status ${(order.fulfillment_status || "pending").toLowerCase()}`}>
+                        {order.payment_status === "paid" ? "Confirmed" : order.payment_status || "Pending"}
+                      </div>
+                    </article>
+                  ))
+                )}
               </div>
             </div>
           </div>
@@ -3168,10 +3909,74 @@ function ProfilePage() {
   );
 }
 
-function BlogPage({ onCartClick, cartCount = 0 }) {
+function BlogPage({ onCartClick, cartCount = 0, customerSession, onLogout }) {
+  const [posts, setPosts] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [activeCategory, setActiveCategory] = useState("All Posts");
+  const API_BASE_URL = "http://127.0.0.1:8000/api";
+
+  useEffect(() => {
+    loadBlogData();
+  }, []);
+
+  const loadBlogData = async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      // Fetch posts
+      const postsResponse = await fetch(`${API_BASE_URL}/blog/posts`);
+      if (!postsResponse.ok) throw new Error("Failed to load posts");
+      const postsData = await postsResponse.json();
+      const allPosts = (postsData.data || postsData).map((post) => ({
+        id: post.id,
+        slug: post.slug,
+        title: post.name,
+        tag: post.categories?.[0]?.name || "General",
+        excerpt: post.description?.substring(0, 150) + "..." || "No description",
+        author: "eStoreindie Team",
+        date: new Date(post.created_at).toLocaleDateString("en-IN", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        }),
+        image: post.image
+          ? `${API_BASE_URL.replace("/api", "")}/image/blog/${post.image}`
+          : "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=1200&auto=format&fit=crop&q=80",
+        categories: post.categories || [],
+      }));
+      setPosts(allPosts);
+
+      // Fetch categories
+      const categoriesResponse = await fetch(`${API_BASE_URL}/blog/categories`);
+      if (categoriesResponse.ok) {
+        const categoriesData = await categoriesResponse.json();
+        const allCategories = categoriesData.data || categoriesData;
+        setCategories(allCategories);
+      }
+    } catch (err) {
+      console.error("Error loading blog data:", err);
+      setError(err.message || "Failed to load blog data");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getFilteredPosts = () => {
+    if (activeCategory === "All Posts") return posts;
+    return posts.filter((post) =>
+      post.categories?.some((cat) => cat.name === activeCategory || cat.id === parseInt(activeCategory))
+    );
+  };
+
+  const filteredPosts = getFilteredPosts();
+  const featuredPost = posts[0];
+
   return (
     <div className="bg-light text-textc">
-      <Header scrolled showUtilityLinks onCartClick={onCartClick} cartCount={cartCount} />
+      <Header scrolled showUtilityLinks onCartClick={onCartClick} cartCount={cartCount} customerSession={customerSession} onLogout={onLogout} />
 
       <section className="blog-page-hero section-shell pt-[120px]">
         <div className="blog-page-grid">
@@ -3180,134 +3985,488 @@ function BlogPage({ onCartClick, cartCount = 0 }) {
             <h1 className="section-title !text-[clamp(2.5rem,4.4vw,4.2rem)]">Insights for Sellers, Buyers, and Marketplace Builders</h1>
             <p className="section-sub max-w-[700px]">Stories, strategies, and practical guidance on product presentation, seller growth, trust systems, design, and marketplace performance.</p>
           </div>
-          <a href="/blog-details" className="featured-blog-card anim sc go d2">
-            <img src={blogPagePosts[0].image} alt={blogPagePosts[0].title} />
-            <div className="featured-blog-overlay">
-              <span className="blog-tag">Featured Story</span>
-              <h3>{blogPagePosts[0].title}</h3>
-              <p>{blogPagePosts[0].excerpt}</p>
-            </div>
-          </a>
+          {featuredPost && (
+            <a href={`/blog-details/${featuredPost.slug}`} className="featured-blog-card anim sc go d2">
+              <img src={featuredPost.image} alt={featuredPost.title} />
+              <div className="featured-blog-overlay">
+                <span className="blog-tag">Featured Story</span>
+                <h3>{featuredPost.title}</h3>
+                <p>{featuredPost.excerpt}</p>
+              </div>
+            </a>
+          )}
         </div>
       </section>
 
       <section className="section-shell bg-white">
         <div className="mx-auto max-w-[1480px]">
-          <div className="blog-chip-row">
-            {['All Posts', 'Growth', 'Design', 'Platform', 'Buying'].map((chip) => (
-              <button key={chip} type="button" className={`product-chip ${chip === 'All Posts' ? 'active' : ''}`}>{chip}</button>
-            ))}
-          </div>
-          <div className="blogs-grid mt-10">
-            {blogPagePosts.map((post, index) => (
-              <article key={post.slug} className={`blog-card anim d${(index % 4) + 1}`}>
-                <div className="h-[240px] overflow-hidden"><img src={post.image} alt={post.title} className="h-full w-full object-cover transition duration-700 hover:scale-105" /></div>
-                <div className="p-[26px]">
-                  <span className="blog-tag">{post.tag}</span>
-                  <h3 className="mb-3 font-display text-[1.2rem] leading-[1.4] text-primary">{post.title}</h3>
-                  <p className="mb-5 text-[0.88rem] leading-[1.7] text-muted">{post.excerpt}</p>
-                  <div className="flex items-center justify-between gap-4 text-[0.8rem] text-muted">
-                    <span>{post.author}</span>
-                    <span>{post.date}</span>
-                  </div>
-                  <a href="/blog-details" className="mini-link mt-4 inline-flex">Read Article</a>
-                </div>
-              </article>
-            ))}
-          </div>
+          {error && <p className="text-[#d64545] mb-4">{error}</p>}
+          {loading ? (
+            <p className="text-center text-muted">Loading blog posts...</p>
+          ) : (
+            <>
+              <div className="blog-chip-row">
+                <button
+                  type="button"
+                  onClick={() => setActiveCategory("All Posts")}
+                  className={`product-chip ${activeCategory === "All Posts" ? "active" : ""}`}
+                >
+                  All Posts
+                </button>
+                {categories.map((cat) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setActiveCategory(cat.name)}
+                    className={`product-chip ${activeCategory === cat.name ? "active" : ""}`}
+                  >
+                    {cat.name}
+                  </button>
+                ))}
+              </div>
+              <div className="blogs-grid mt-10">
+                {filteredPosts.length > 0 ? (
+                  filteredPosts.map((post, index) => (
+                    <article key={post.slug} className={`blog-card anim d${(index % 4) + 1}`}>
+                      <div className="h-[240px] overflow-hidden">
+                        <img src={post.image} alt={post.title} className="h-full w-full object-cover transition duration-700 hover:scale-105" />
+                      </div>
+                      <div className="p-[26px]">
+                        <span className="blog-tag">{post.tag}</span>
+                        <h3 className="mb-3 font-display text-[1.2rem] leading-[1.4] text-primary">{post.title}</h3>
+                        <p className="mb-5 text-[0.88rem] leading-[1.7] text-muted">{post.excerpt}</p>
+                        <div className="flex items-center justify-between gap-4 text-[0.8rem] text-muted">
+                          <span>{post.author}</span>
+                          <span>{post.date}</span>
+                        </div>
+                        <a href={`/blog-details/${post.slug}`} className="mini-link mt-4 inline-flex">
+                          Read Article
+                        </a>
+                      </div>
+                    </article>
+                  ))
+                ) : (
+                  <p className="text-center text-muted col-span-full py-10">No posts found in this category</p>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </section>
 
       <footer className="border-t border-borderc bg-white/95 px-[5%] pb-8 pt-20 text-textc backdrop-blur-[16px]">
-        <div className="mx-auto mb-14 grid max-w-screen-xl gap-[52px] md:grid-cols-2 xl:grid-cols-[2fr_1fr_1fr_1fr]"><FooterBrand />{footerLinks.map(([title, items], index) => (<div key={title} className={`anim d${index + 1}`}><h5 className="mb-5 text-[0.78rem] font-bold uppercase tracking-[2px] text-primary">{title}</h5><ul className="flex flex-col gap-[11px]">{items.map(({ label, href }) => (<li key={label}><a href={href} className="footer-link">{label}</a></li>))}</ul></div>))}</div>
-        <div className="mx-auto flex max-w-screen-xl flex-wrap items-center justify-between gap-3 border-t border-borderc pt-7"><p className="text-[0.82rem] text-muted">© 2025 eStoreindie. All rights reserved. Made with love in India.</p><p className="text-[0.82rem] text-muted">Designed for <a href="#" className="text-accent2 no-underline">Bharat's Entrepreneurs</a></p></div>
+        <div className="mx-auto mb-14 grid max-w-screen-xl gap-[52px] md:grid-cols-2 xl:grid-cols-[2fr_1fr_1fr_1fr]">
+          <FooterBrand />
+          {footerLinks.map(([title, items], index) => (
+            <div key={title} className={`anim d${index + 1}`}>
+              <h5 className="mb-5 text-[0.78rem] font-bold uppercase tracking-[2px] text-primary">{title}</h5>
+              <ul className="flex flex-col gap-[11px]">
+                {items.map(({ label, href }) => (
+                  <li key={label}>
+                    <a href={href} className="footer-link">
+                      {label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+        <div className="mx-auto flex max-w-screen-xl flex-wrap items-center justify-between gap-3 border-t border-borderc pt-7">
+          <p className="text-[0.82rem] text-muted">© 2025 eStoreindie. All rights reserved. Made with love in India.</p>
+          <p className="text-[0.82rem] text-muted">
+            Designed for <a href="#" className="text-accent2 no-underline">Bharat's Entrepreneurs</a>
+          </p>
+        </div>
       </footer>
     </div>
   );
 }
 
-function BlogDetailPage({ onCartClick, cartCount = 0 }) {
+function BlogDetailPage({ onCartClick, cartCount = 0, customerSession, onLogout }) {
+  const [post, setPost] = useState(null);
+  const [relatedPosts, setRelatedPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const blogSlug = getBlogPostSlugFromPath();
+  const API_BASE_URL = "http://127.0.0.1:8000/api";
+
+  useEffect(() => {
+    loadBlogPost();
+  }, [blogSlug]);
+
+  const loadBlogPost = async () => {
+    if (!blogSlug) {
+      setError("Blog post not found");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError("");
+
+      // Fetch all posts
+      const postsResponse = await fetch(`${API_BASE_URL}/blog/posts`);
+      if (!postsResponse.ok) throw new Error("Failed to load posts");
+      const postsData = await postsResponse.json();
+      const allPosts = postsData.data || postsData;
+
+      // Find the post by slug
+      const foundPost = allPosts.find((p) => p.slug === blogSlug);
+      if (!foundPost) {
+        setError("Blog post not found");
+        setLoading(false);
+        return;
+      }
+
+      // Format the post
+      const formattedPost = {
+        id: foundPost.id,
+        title: foundPost.name,
+        slug: foundPost.slug,
+        description: foundPost.description,
+        tag: foundPost.categories?.[0]?.name || "General",
+        image: foundPost.image
+          ? `${API_BASE_URL.replace("/api", "")}/image/blog/${foundPost.image}`
+          : "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=1600&auto=format&fit=crop&q=80",
+        author: "eStoreindie Team",
+        date: new Date(foundPost.created_at).toLocaleDateString("en-IN", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        }),
+        categories: foundPost.categories || [],
+      };
+
+      setPost(formattedPost);
+
+      // Get related posts (same category or first 3 other posts)
+      const related = allPosts
+        .filter((p) => p.id !== foundPost.id)
+        .slice(0, 3)
+        .map((p) => ({
+          id: p.id,
+          title: p.name,
+          slug: p.slug,
+          excerpt: p.description?.substring(0, 100) + "..." || "No description",
+          tag: p.categories?.[0]?.name || "General",
+          image: p.image
+            ? `${API_BASE_URL.replace("/api", "")}/image/blog/${p.image}`
+            : "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=800&auto=format&fit=crop&q=80",
+        }));
+      setRelatedPosts(related);
+    } catch (err) {
+      console.error("Error loading blog post:", err);
+      setError(err.message || "Failed to load blog post");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="bg-light text-textc min-h-screen">
+        <Header scrolled showUtilityLinks onCartClick={onCartClick} cartCount={cartCount} customerSession={customerSession} onLogout={onLogout} />
+        <section className="section-shell pt-[120px]">
+          <p className="text-center text-muted">Loading blog post...</p>
+        </section>
+      </div>
+    );
+  }
+
+  if (error || !post) {
+    return (
+      <div className="bg-light text-textc min-h-screen">
+        <Header scrolled showUtilityLinks onCartClick={onCartClick} cartCount={cartCount} customerSession={customerSession} onLogout={onLogout} />
+        <section className="section-shell pt-[120px]">
+          <p className="text-center text-[#d64545]">{error}</p>
+          <div className="text-center mt-6">
+            <a href="/blog" className="text-accent hover:underline">← Back to Blog</a>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-light text-textc">
-      <Header scrolled showUtilityLinks onCartClick={onCartClick} cartCount={cartCount} />
+      <Header scrolled showUtilityLinks onCartClick={onCartClick} cartCount={cartCount} customerSession={customerSession} onLogout={onLogout} />
 
       <section className="section-shell pt-[120px] pb-0">
         <div className="detail-breadcrumbs anim go">
-          <a href="/">Home</a><span>/</span><a href="/blog">Blog</a><span>/</span><span>{blogDetailContent.title}</span>
+          <a href="/">Home</a>
+          <span>/</span>
+          <a href="/blog">Blog</a>
+          <span>/</span>
+          <span>{post.title}</span>
         </div>
       </section>
 
       <section className="section-shell pt-8">
         <div className="blog-detail-shell">
           <div className="blog-detail-main anim go">
-            <span className="blog-tag">{blogDetailContent.tag}</span>
-            <h1 className="blog-detail-title">{blogDetailContent.title}</h1>
-            <div className="blog-detail-meta"><span>{blogDetailContent.author}</span><span>{blogDetailContent.date}</span></div>
-            <div className="blog-detail-image"><img src={blogDetailContent.image} alt={blogDetailContent.title} /></div>
-            <p className="blog-detail-intro">{blogDetailContent.intro}</p>
+            <span className="blog-tag">{post.tag}</span>
+            <h1 className="blog-detail-title">{post.title}</h1>
+            <div className="blog-detail-meta">
+              <span>{post.author}</span>
+              <span>{post.date}</span>
+            </div>
+            <div className="blog-detail-image">
+              <img src={post.image} alt={post.title} />
+            </div>
             <div className="blog-detail-content">
-              {blogDetailContent.sections.map(([heading, text]) => (
-                <div key={heading} className="blog-detail-section">
-                  <h2>{heading}</h2>
-                  <p>{text}</p>
+              {post.description && (
+                <div className="prose max-w-none">
+                  <div
+                    dangerouslySetInnerHTML={{ __html: post.description }}
+                    className="text-base leading-relaxed space-y-4"
+                  />
                 </div>
-              ))}
+              )}
             </div>
           </div>
           <aside className="blog-detail-side anim sr go">
             <div className="detail-panel">
-              <h3>In This Article</h3>
+              <h3>About This Post</h3>
               <ul>
-                {blogDetailContent.sections.map(([heading]) => (<li key={heading}><FaCheck className="text-accent" />{heading}</li>))}
+                {post.categories?.map((cat) => (
+                  <li key={cat.id}>
+                    <FaCheck className="text-accent" />
+                    {cat.name}
+                  </li>
+                ))}
               </ul>
             </div>
-            <div className="detail-panel mt-6">
-              <h3>More Reads</h3>
-              <div className="space-y-4">
-                {blogPagePosts.slice(1,4).map((post) => (
-                  <a key={post.slug} href="/blog-details" className="mini-link block">{post.title}</a>
-                ))}
+            {relatedPosts.length > 0 && (
+              <div className="detail-panel mt-6">
+                <h3>More Reads</h3>
+                <div className="space-y-4">
+                  {relatedPosts.map((p) => (
+                    <a key={p.slug} href={`/blog-details/${p.slug}`} className="mini-link block hover:text-accent">
+                      {p.title}
+                    </a>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </aside>
         </div>
       </section>
 
-      <section className="section-shell bg-white">
-        <div className="mx-auto max-w-[1480px]">
-          <div className="mb-8 flex items-end justify-between gap-4"><div><span className="section-label">Related Posts</span><h2 className="section-title mb-0">Continue Reading</h2></div></div>
-          <div className="blogs-grid">
-            {blogPagePosts.slice(1).map((post, index) => (
-              <article key={post.slug} className={`blog-card anim d${index + 1}`}>
-                <div className="h-[220px] overflow-hidden"><img src={post.image} alt={post.title} className="h-full w-full object-cover transition duration-700 hover:scale-105" /></div>
-                <div className="p-[26px]"><span className="blog-tag">{post.tag}</span><h3 className="mb-3 font-display text-[1.12rem] leading-[1.4] text-primary">{post.title}</h3><p className="mb-4 text-[0.86rem] leading-[1.7] text-muted">{post.excerpt}</p><a href="/blog-details" className="mini-link">Read Article</a></div>
-              </article>
-            ))}
+      {relatedPosts.length > 0 && (
+        <section className="section-shell bg-white">
+          <div className="mx-auto max-w-[1480px]">
+            <div className="mb-8 flex items-end justify-between gap-4">
+              <div>
+                <span className="section-label">Related Posts</span>
+                <h2 className="section-title mb-0">Continue Reading</h2>
+              </div>
+            </div>
+            <div className="blogs-grid">
+              {relatedPosts.map((relPost, index) => (
+                <article key={relPost.slug} className={`blog-card anim d${index + 1}`}>
+                  <div className="h-[220px] overflow-hidden">
+                    <img src={relPost.image} alt={relPost.title} className="h-full w-full object-cover transition duration-700 hover:scale-105" />
+                  </div>
+                  <div className="p-[26px]">
+                    <span className="blog-tag">{relPost.tag}</span>
+                    <h3 className="mb-3 font-display text-[1.12rem] leading-[1.4] text-primary">{relPost.title}</h3>
+                    <p className="mb-4 text-[0.86rem] leading-[1.7] text-muted">{relPost.excerpt}</p>
+                    <a href={`/blog-details/${relPost.slug}`} className="mini-link">
+                      Read Article
+                    </a>
+                  </div>
+                </article>
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       <footer className="border-t border-borderc bg-white/95 px-[5%] pb-8 pt-20 text-textc backdrop-blur-[16px]">
-        <div className="mx-auto mb-14 grid max-w-screen-xl gap-[52px] md:grid-cols-2 xl:grid-cols-[2fr_1fr_1fr_1fr]"><FooterBrand />{footerLinks.map(([title, items], index) => (<div key={title} className={`anim d${index + 1}`}><h5 className="mb-5 text-[0.78rem] font-bold uppercase tracking-[2px] text-primary">{title}</h5><ul className="flex flex-col gap-[11px]">{items.map(({ label, href }) => (<li key={label}><a href={href} className="footer-link">{label}</a></li>))}</ul></div>))}</div>
-        <div className="mx-auto flex max-w-screen-xl flex-wrap items-center justify-between gap-3 border-t border-borderc pt-7"><p className="text-[0.82rem] text-muted">© 2025 eStoreindie. All rights reserved. Made with love in India.</p><p className="text-[0.82rem] text-muted">Designed for <a href="#" className="text-accent2 no-underline">Bharat's Entrepreneurs</a></p></div>
+        <div className="mx-auto mb-14 grid max-w-screen-xl gap-[52px] md:grid-cols-2 xl:grid-cols-[2fr_1fr_1fr_1fr]">
+          <FooterBrand />
+          {footerLinks.map(([title, items], index) => (
+            <div key={title} className={`anim d${index + 1}`}>
+              <h5 className="mb-5 text-[0.78rem] font-bold uppercase tracking-[2px] text-primary">{title}</h5>
+              <ul className="flex flex-col gap-[11px]">
+                {items.map(({ label, href }) => (
+                  <li key={label}>
+                    <a href={href} className="footer-link">
+                      {label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+        <div className="mx-auto flex max-w-screen-xl flex-wrap items-center justify-between gap-3 border-t border-borderc pt-7">
+          <p className="text-[0.82rem] text-muted">© 2025 eStoreindie. All rights reserved. Made with love in India.</p>
+          <p className="text-[0.82rem] text-muted">
+            Designed for <a href="#" className="text-accent2 no-underline">Bharat's Entrepreneurs</a>
+          </p>
+        </div>
       </footer>
     </div>
   );
 }
-function CheckoutPage({ cartItems, onCartClick }) {
+function CheckoutPage({ cartItems, customerSession, onCartClick, onOrderPlaced }) {
   const checkoutItems = cartItems;
   const [couponCode, setCouponCode] = useState("SAVE10");
   const [paymentMethod, setPaymentMethod] = useState("upi");
   const [placed, setPlaced] = useState(false);
-  const subtotal = checkoutItems.reduce((sum, item) => sum + (item.numericPrice * item.qty), 0);
-  const delivery = checkoutItems.length ? 120 : 0;
-  const discount = checkoutItems.length ? 350 : 0;
-  const taxes = checkoutItems.length ? 81 : 0;
-  const total = Math.max(0, subtotal + delivery + taxes - discount);
+  const [orderSummary, setOrderSummary] = useState(null);
+  const [checkoutError, setCheckoutError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [customerForm, setCustomerForm] = useState(() => ({
+    fullName: customerSession?.name || "",
+    phone: customerSession?.phone || "",
+    email: customerSession?.email || "",
+    city: customerSession?.city || "",
+    state: "",
+    pincode: "",
+    address: customerSession?.address || "",
+  }));
+  const { subtotal, delivery, discount, taxes, total, appliedCoupon } = calculateCheckoutTotals(checkoutItems, couponCode);
+  const vendorName = checkoutItems[0]?.vendor || "Vendor Store";
 
-  const handleSubmit = (event) => {
+  useEffect(() => {
+    setCustomerForm((current) => ({
+      ...current,
+      fullName: customerSession?.name || current.fullName,
+      phone: customerSession?.phone || current.phone,
+      email: customerSession?.email || current.email,
+      city: customerSession?.city || current.city,
+      address: customerSession?.address || current.address,
+    }));
+  }, [customerSession]);
+
+  const updateCustomerField = (field, value) => {
+    setCustomerForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  };
+
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    setPlaced(true);
+
+    if (!customerSession?.id) {
+      setCheckoutError("Please login before continuing to Razorpay checkout.");
+      return;
+    }
+
+    if (!checkoutItems.length) {
+      setCheckoutError("Your cart is empty.");
+      return;
+    }
+
+    if (!checkoutItems.every((item) => item.vendorId && String(item.vendorId) === String(checkoutItems[0]?.vendorId))) {
+      setCheckoutError("Checkout requires all cart items to belong to the same vendor storefront.");
+      return;
+    }
+
+    setCheckoutError("");
+    setIsSubmitting(true);
+
+    try {
+      const Razorpay = await loadRazorpayScript();
+      const createOrderResponse = await fetch(`${SELLER_API_BASE_URL}/checkout/orders`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          user_id: customerSession.id,
+          coupon_code: couponCode,
+          payment_method: paymentMethod,
+          customer: {
+            name: customerForm.fullName,
+            email: customerForm.email,
+            phone: customerForm.phone,
+            city: customerForm.city,
+            state: customerForm.state,
+            pincode: customerForm.pincode,
+            address: customerForm.address,
+          },
+          items: checkoutItems.map((item) => ({
+            vendor_id: item.vendorId,
+            vendor_slug: item.vendorSlug,
+            product_id: item.productId,
+            title: item.title,
+            sku: item.sku,
+            quantity: item.qty,
+            unit_price: item.numericPrice,
+            image: item.image,
+            meta: item.meta,
+          })),
+        }),
+      });
+
+      const createOrderPayload = await createOrderResponse.json().catch(() => ({}));
+
+      if (!createOrderResponse.ok) {
+        throw new Error(createOrderPayload.details || createOrderPayload.message || "Unable to start Razorpay checkout right now.");
+      }
+
+      const razorpay = new Razorpay({
+        key: createOrderPayload.razorpay.key,
+        amount: createOrderPayload.razorpay.amount,
+        currency: createOrderPayload.razorpay.currency,
+        name: createOrderPayload.razorpay.name,
+        description: createOrderPayload.razorpay.description,
+        order_id: createOrderPayload.razorpay.order_id,
+        prefill: createOrderPayload.razorpay.prefill,
+        notes: createOrderPayload.razorpay.notes,
+        theme: {
+          color: "#e85d2f",
+        },
+        handler: async (response) => {
+          try {
+            const verifyResponse = await fetch(`${SELLER_API_BASE_URL}/checkout/orders/verify`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Accept: "application/json",
+              },
+              body: JSON.stringify({
+                order_id: createOrderPayload.order.id,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              }),
+            });
+
+            const verifyPayload = await verifyResponse.json().catch(() => ({}));
+
+            if (!verifyResponse.ok) {
+              throw new Error(verifyPayload.message || "Payment verification failed.");
+            }
+
+            setOrderSummary(verifyPayload.order);
+            setPlaced(true);
+            onOrderPlaced?.();
+          } catch (error) {
+            setCheckoutError(error.message || "Payment verification failed.");
+          } finally {
+            setIsSubmitting(false);
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            setIsSubmitting(false);
+          },
+        },
+      });
+
+      razorpay.open();
+    } catch (error) {
+      setCheckoutError(error.message || "Unable to start Razorpay checkout right now.");
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -3326,7 +4485,7 @@ function CheckoutPage({ cartItems, onCartClick }) {
           <div className="anim go">
             <span className="section-label">Secure Checkout</span>
             <h1 className="section-title !text-[clamp(2.4rem,4.5vw,4rem)]">Review your order, confirm address, and complete payment</h1>
-            <p className="section-sub max-w-[760px]">This checkout page includes the key parts users expect after cart: delivery address, coupon, payment selection, item review, and final pricing summary.</p>
+            <p className="section-sub max-w-[760px]">This flow now creates a real Razorpay order while keeping the dedicated vendor reference from the storefront through payment confirmation.</p>
           </div>
 
           <div className="checkout-progress anim go d1">
@@ -3346,31 +4505,31 @@ function CheckoutPage({ cartItems, onCartClick }) {
                   <div className="checkout-form-grid">
                     <label className="checkout-field">
                       <span>Full Name</span>
-                      <input type="text" placeholder="Enter full name" required />
+                      <input type="text" value={customerForm.fullName} onChange={(event) => updateCustomerField("fullName", event.target.value)} placeholder="Enter full name" required />
                     </label>
                     <label className="checkout-field">
                       <span>Phone Number</span>
-                      <input type="tel" placeholder="+91 98765 43210" required />
+                      <input type="tel" value={customerForm.phone} onChange={(event) => updateCustomerField("phone", event.target.value)} placeholder="+91 98765 43210" required />
                     </label>
                     <label className="checkout-field">
                       <span>Email Address</span>
-                      <input type="email" placeholder="you@example.com" required />
+                      <input type="email" value={customerForm.email} onChange={(event) => updateCustomerField("email", event.target.value)} placeholder="you@example.com" required />
                     </label>
                     <label className="checkout-field">
                       <span>City</span>
-                      <input type="text" placeholder="Jaipur" required />
+                      <input type="text" value={customerForm.city} onChange={(event) => updateCustomerField("city", event.target.value)} placeholder="Jaipur" required />
                     </label>
                     <label className="checkout-field">
                       <span>State</span>
-                      <input type="text" placeholder="Rajasthan" required />
+                      <input type="text" value={customerForm.state} onChange={(event) => updateCustomerField("state", event.target.value)} placeholder="Rajasthan" required />
                     </label>
                     <label className="checkout-field">
                       <span>Pincode</span>
-                      <input type="text" placeholder="302001" required />
+                      <input type="text" value={customerForm.pincode} onChange={(event) => updateCustomerField("pincode", event.target.value)} placeholder="302001" required />
                     </label>
                     <label className="checkout-field checkout-field-wide">
                       <span>Full Address</span>
-                      <textarea placeholder="House no, street, landmark, area" required />
+                      <textarea value={customerForm.address} onChange={(event) => updateCustomerField("address", event.target.value)} placeholder="House no, street, landmark, area" required />
                     </label>
                   </div>
                 </div>
@@ -3379,10 +4538,10 @@ function CheckoutPage({ cartItems, onCartClick }) {
                   <h3>Coupon & Offers</h3>
                   <div className="checkout-coupon-row">
                     <input type="text" value={couponCode} onChange={(event) => setCouponCode(event.target.value)} placeholder="Enter coupon code" />
-                    <button type="button" className="nav-utility nav-utility-accent">Apply</button>
+                    <button type="button" className="nav-utility nav-utility-accent">{appliedCoupon ? "Applied" : "Apply"}</button>
                   </div>
                   <div className="checkout-meta-list mt-4">
-                    <div><FaCheck className="text-accent" /><span>`SAVE10` gives instant savings on curated orders.</span></div>
+                    <div><FaCheck className="text-accent" /><span>`SAVE10` gives 10% off up to Rs. 350 on vendor storefront orders.</span></div>
                     <div><FaCheck className="text-accent" /><span>Free buyer protection included on all eligible items.</span></div>
                   </div>
                 </div>
@@ -3391,10 +4550,9 @@ function CheckoutPage({ cartItems, onCartClick }) {
                   <h3>Payment Method</h3>
                   <div className="checkout-payment-list">
                     {[
-                      ["upi", "UPI / Wallet", "Fastest checkout for mobile users"],
-                      ["card", "Credit / Debit Card", "Visa, Mastercard, RuPay supported"],
-                      ["netbanking", "Net Banking", "Pay directly from your bank"],
-                      ["cod", "Cash on Delivery", "Available on eligible pin codes"],
+                      ["upi", "UPI / Wallet", "Handled through Razorpay for fast mobile checkout"],
+                      ["card", "Credit / Debit Card", "Visa, Mastercard, and RuPay via Razorpay"],
+                      ["netbanking", "Net Banking", "Pay directly from your bank with Razorpay"],
                     ].map(([value, label, text]) => (
                       <label key={value} className={`checkout-payment-option ${paymentMethod === value ? 'selected' : ''}`}>
                         <input type="radio" name="paymentMethod" checked={paymentMethod === value} onChange={() => setPaymentMethod(value)} />
@@ -3411,15 +4569,18 @@ function CheckoutPage({ cartItems, onCartClick }) {
               <div className="space-y-6">
                 <div className="checkout-panel anim sr go">
                   <h3>Order Review</h3>
+                  <div className="mb-4 rounded-[20px] bg-light p-4 text-[0.92rem] text-muted">
+                    Buying from <strong className="text-primary">{vendorName}</strong>.
+                  </div>
                   <div className="space-y-4">
                     {checkoutItems.map((item) => (
-                      <div key={item.title} className="checkout-order-item">
+                      <div key={item.id || item.title} className="checkout-order-item">
                         <div>
                           <strong>{item.title}</strong>
                           <span>{item.vendor}</span>
                           <p>Qty: {item.qty}</p>
                         </div>
-                        <strong>{item.price}</strong>
+                        <strong>{formatCurrency(item.numericPrice * item.qty)}</strong>
                       </div>
                     ))}
                   </div>
@@ -3435,11 +4596,14 @@ function CheckoutPage({ cartItems, onCartClick }) {
                     <div className="checkout-total-row"><span>Total Payable</span><strong>{formatCurrency(total)}</strong></div>
                   </div>
                   <div className="checkout-meta-list mt-6">
-                    <div><FaShieldAlt className="text-accent" /><span>Secure encrypted payment flow</span></div>
+                    <div><FaShieldAlt className="text-accent" /><span>Secure encrypted Razorpay payment flow</span></div>
                     <div><FaTruck className="text-accent" /><span>Estimated delivery in 3-5 business days</span></div>
-                    <div><FaRupeeSign className="text-accent" /><span>Transparent pricing with no hidden platform fee</span></div>
+                    <div><FaRupeeSign className="text-accent" /><span>Vendor reference is stored with the order for payout clarity</span></div>
                   </div>
-                  <button type="submit" className="btn-primary checkout-submit">Place Order</button>
+                  {checkoutError ? <p className="mt-4 text-sm text-red-600">{checkoutError}</p> : null}
+                  <button type="submit" className="btn-primary checkout-submit" disabled={isSubmitting || !checkoutItems.length}>
+                    {isSubmitting ? "Opening Razorpay..." : "Pay with Razorpay"}
+                  </button>
                 </div>
               </div>
             </form>
@@ -3449,7 +4613,14 @@ function CheckoutPage({ cartItems, onCartClick }) {
                 <FaCheck />
               </div>
               <h2>Order placed successfully</h2>
-              <p>Your order has been confirmed. A payment and delivery update would typically be sent to the registered email and phone number.</p>
+              <p>Your payment has been verified and the order is now linked to the vendor storefront for fulfillment and payout tracking.</p>
+              {orderSummary ? (
+                <div className="mt-6 rounded-[24px] bg-white p-6 text-left shadow-[0_24px_60px_rgba(16,24,40,0.08)]">
+                  <p><strong>Order Number:</strong> {orderSummary.order_number}</p>
+                  <p><strong>Vendor:</strong> {orderSummary.vendor?.store_name || orderSummary.vendor?.business_name || orderSummary.vendor?.name}</p>
+                  <p><strong>Total Paid:</strong> {formatCurrency(orderSummary.total_amount)}</p>
+                </div>
+              ) : null}
               <div className="mt-8 flex flex-wrap justify-center gap-4">
                 <a href="/products" className="btn-primary">Continue Shopping</a>
                 <a href="/cart" className="nav-utility" onClick={onCartClick}>Back to Cart</a>
@@ -3462,10 +4633,11 @@ function CheckoutPage({ cartItems, onCartClick }) {
   );
 }
 
-function CartPage({ cartItems, onCartClick, onUpdateQty, onRemoveItem }) {
+function CartPage({ cartItems, cartNotice = "", onCartClick, onUpdateQty, onRemoveItem, customerSession, onLogout }) {
   const subtotal = cartItems.reduce((sum, item) => sum + (item.numericPrice * item.qty), 0);
   const delivery = cartItems.length ? 120 : 0;
-  const total = subtotal + delivery;
+  const taxes = Math.max(subtotal, 0) * 0.18;
+  const total = subtotal + delivery + taxes;
 
   return (
     <div className="bg-light text-textc">
@@ -3490,6 +4662,11 @@ function CartPage({ cartItems, onCartClick, onUpdateQty, onRemoveItem }) {
             <div className="detail-panel anim sl go">
               <h3>Cart Items</h3>
               <div className="space-y-4">
+                {cartNotice ? (
+                  <div className="rounded-[22px] border border-[rgba(232,93,47,0.25)] bg-[rgba(232,93,47,0.08)] p-5 text-[0.92rem] text-primary">
+                    {cartNotice}
+                  </div>
+                ) : null}
                 {!cartItems.length ? (
                   <div className="rounded-[22px] bg-light p-6">
                     <strong className="block text-[1rem] text-primary">Your cart is empty</strong>
@@ -3522,6 +4699,7 @@ function CartPage({ cartItems, onCartClick, onUpdateQty, onRemoveItem }) {
               <div className="space-y-4 text-[0.92rem] text-muted">
                 <div className="flex items-center justify-between"><span>Subtotal</span><strong className="text-primary">{formatCurrency(subtotal)}</strong></div>
                 <div className="flex items-center justify-between"><span>Delivery</span><strong className="text-primary">{formatCurrency(delivery)}</strong></div>
+                <div className="flex items-center justify-between"><span>Taxes (18%)</span><strong className="text-primary">{formatCurrency(taxes)}</strong></div>
                 <div className="flex items-center justify-between"><span>Platform protection</span><strong className="text-primary">Free</strong></div>
                 <div className="flex items-center justify-between border-t border-borderc pt-4"><span>Total</span><strong className="font-display text-[1.5rem] text-primary">{formatCurrency(total)}</strong></div>
               </div>
@@ -3582,7 +4760,12 @@ function LoginPage() {
         throw new Error(payload.message || "Unable to login right now.");
       }
 
-      storeCustomerSession(payload.user);
+      // Store user and token together
+      const sessionData = {
+        ...payload.user,
+        token: payload.token,
+      };
+      storeCustomerSession(sessionData);
       setSubmitted(true);
 
       if (typeof window !== "undefined") {
@@ -3757,7 +4940,12 @@ function RegisterPage() {
         throw new Error(payload.message || "Unable to create account right now.");
       }
 
-      storeCustomerSession(payload.user);
+      // Store user and token together
+      const sessionData = {
+        ...payload.user,
+        token: payload.token,
+      };
+      storeCustomerSession(sessionData);
       setSubmitted(true);
 
       if (typeof window !== "undefined") {
@@ -3939,6 +5127,521 @@ function TextAreaField({ label, name, placeholder, value, onChange, error }) {
       <textarea name={name} placeholder={placeholder} value={value} onChange={(event) => onChange(name, event.target.value)} />
       {error ? <small className="text-[0.8rem] font-medium text-[#d64545]">{error}</small> : null}
     </label>
+  );
+}
+
+function AdminBlogPage() {
+  const [activeTab, setActiveTab] = useState("categories");
+  const [categories, setCategories] = useState([]);
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const API_BASE_URL = "http://127.0.0.1:8000/api";
+
+  useEffect(() => {
+    loadCategories();
+    loadPosts();
+  }, []);
+
+  const loadCategories = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${API_BASE_URL}/blog/categories`);
+      if (response.ok) {
+        const data = await response.json();
+        setCategories(data.data || data);
+      }
+    } catch (error) {
+      console.error("Error loading categories:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadPosts = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${API_BASE_URL}/blog/posts`);
+      if (response.ok) {
+        const data = await response.json();
+        setPosts(data.data || data);
+      }
+    } catch (error) {
+      console.error("Error loading posts:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteCategory = async (id) => {
+    if (!confirm("Are you sure?")) return;
+    try {
+      const token = localStorage.getItem("sanctumToken");
+      const response = await fetch(`${API_BASE_URL}/blog/categories/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        setCategories((prev) => prev.filter((c) => c.id !== id));
+      }
+    } catch (error) {
+      console.error("Error deleting category:", error);
+    }
+  };
+
+  const deletePost = async (id) => {
+    if (!confirm("Are you sure?")) return;
+    try {
+      const token = localStorage.getItem("sanctumToken");
+      const response = await fetch(`${API_BASE_URL}/blog/posts/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        setPosts((prev) => prev.filter((p) => p.id !== id));
+      }
+    } catch (error) {
+      console.error("Error deleting post:", error);
+    }
+  };
+
+  const handleCategoryAdded = (newCategory) => {
+    setCategories((prev) => [...prev, newCategory]);
+  };
+
+  const handlePostAdded = (newPost) => {
+    setPosts((prev) => [...prev, newPost]);
+  };
+
+  return (
+    <div className="bg-light text-textc min-h-screen pt-24 pb-12">
+      <section className="section-shell">
+        <div className="mx-auto max-w-[1200px]">
+          <div className="admin-header mb-8">
+            <h1 className="text-4xl font-bold mb-2">Blog Management</h1>
+            <p className="text-muted">Manage blog categories and posts</p>
+          </div>
+
+          <div className="admin-tabs mb-8 flex gap-4 border-b border-borderc">
+            <button
+              type="button"
+              onClick={() => setActiveTab("categories")}
+              className={`px-6 py-3 font-medium transition ${
+                activeTab === "categories"
+                  ? "border-b-2 border-accent text-accent"
+                  : "text-muted hover:text-textc"
+              }`}
+            >
+              Categories
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("posts")}
+              className={`px-6 py-3 font-medium transition ${
+                activeTab === "posts"
+                  ? "border-b-2 border-accent text-accent"
+                  : "text-muted hover:text-textc"
+              }`}
+            >
+              Posts
+            </button>
+          </div>
+
+          {activeTab === "categories" && (
+            <div className="admin-section">
+              <BlogCategoryForm onCategoryAdded={handleCategoryAdded} />
+              <div className="mt-12">
+                <h2 className="text-2xl font-bold mb-6">All Categories</h2>
+                {loading ? (
+                  <p>Loading...</p>
+                ) : categories.length === 0 ? (
+                  <p className="text-muted">No categories yet</p>
+                ) : (
+                  <div className="admin-table overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-borderc">
+                          <th className="text-left px-4 py-3">Name</th>
+                          <th className="text-left px-4 py-3">Posts</th>
+                          <th className="text-right px-4 py-3">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {categories.map((cat) => (
+                          <tr key={cat.id} className="border-b border-borderc hover:bg-white/50">
+                            <td className="px-4 py-3">{cat.name}</td>
+                            <td className="px-4 py-3">{cat.posts_count || 0}</td>
+                            <td className="text-right px-4 py-3">
+                              <button
+                                type="button"
+                                onClick={() => deleteCategory(cat.id)}
+                                className="text-[#d64545] hover:underline text-sm"
+                              >
+                                Delete
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === "posts" && (
+            <div className="admin-section">
+              <BlogPostForm categories={categories} onPostAdded={handlePostAdded} />
+              <div className="mt-12">
+                <h2 className="text-2xl font-bold mb-6">All Posts</h2>
+                {loading ? (
+                  <p>Loading...</p>
+                ) : posts.length === 0 ? (
+                  <p className="text-muted">No posts yet</p>
+                ) : (
+                  <div className="admin-table overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-borderc">
+                          <th className="text-left px-4 py-3">Title</th>
+                          <th className="text-left px-4 py-3">Slug</th>
+                          <th className="text-left px-4 py-3">Categories</th>
+                          <th className="text-right px-4 py-3">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {posts.map((post) => (
+                          <tr key={post.id} className="border-b border-borderc hover:bg-white/50">
+                            <td className="px-4 py-3">{post.name}</td>
+                            <td className="px-4 py-3 text-sm text-muted">{post.slug}</td>
+                            <td className="px-4 py-3">
+                              {post.categories?.map((c) => c.name).join(", ") || "No categories"}
+                            </td>
+                            <td className="text-right px-4 py-3">
+                              <button
+                                type="button"
+                                onClick={() => deletePost(post.id)}
+                                className="text-[#d64545] hover:underline text-sm"
+                              >
+                                Delete
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function BlogCategoryForm({ onCategoryAdded }) {
+  const [form, setForm] = useState({ name: "" });
+  const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+  const API_BASE_URL = "http://127.0.0.1:8000/api";
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+    setErrors((prev) => ({ ...prev, [name]: "" }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setErrors({});
+
+    if (!form.name.trim()) {
+      setErrors({ name: "Category name is required" });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const token = localStorage.getItem("sanctumToken");
+      const response = await fetch(`${API_BASE_URL}/blog/categories`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(form),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        setErrors(errData.errors || { submit: "Failed to create category" });
+        return;
+      }
+
+      const result = await response.json();
+      onCategoryAdded(result.data || result);
+      setForm({ name: "" });
+      alert("Category created successfully!");
+    } catch (error) {
+      console.error("Error creating category:", error);
+      setErrors({ submit: error.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="admin-form bg-white p-8 rounded-lg border border-borderc">
+      <h2 className="text-2xl font-bold mb-6">Add New Category</h2>
+      <form onSubmit={handleSubmit}>
+        <div className="form-row mb-6">
+          <Field
+            label="Category Name *"
+            name="name"
+            placeholder="e.g., Technology, Business"
+            value={form.name}
+            onChange={(name, value) => handleChange({ target: { name, value } })}
+            error={errors.name}
+          />
+        </div>
+        {errors.submit && <p className="text-[#d64545] text-sm mb-4">{errors.submit}</p>}
+        <button
+          type="submit"
+          disabled={loading}
+          className="btn-primary"
+        >
+          {loading ? "Creating..." : "Create Category"}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function BlogPostForm({ categories, onPostAdded }) {
+  const [form, setForm] = useState({
+    name: "",
+    slug: "",
+    description: "",
+    image: null,
+    meta_group_id: "",
+    categories: [],
+  });
+  const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [preview, setPreview] = useState(null);
+  const API_BASE_URL = "http://127.0.0.1:8000/api";
+
+  const generateSlug = (name) => {
+    return name
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s-]/g, "")
+      .replace(/[\s_-]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm((prev) => {
+      const updated = { ...prev, [name]: value };
+      if (name === "name" && !prev.slug) {
+        updated.slug = generateSlug(value);
+      }
+      return updated;
+    });
+    setErrors((prev) => ({ ...prev, [name]: "" }));
+  };
+
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setForm((prev) => ({ ...prev, image: file }));
+      const reader = new FileReader();
+      reader.onload = (event) => setPreview(event.target?.result);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const toggleCategory = (categoryId) => {
+    setForm((prev) => ({
+      ...prev,
+      categories: prev.categories.includes(categoryId)
+        ? prev.categories.filter((id) => id !== categoryId)
+        : [...prev.categories, categoryId],
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setErrors({});
+
+    if (!form.name.trim() || !form.slug.trim() || !form.description.trim()) {
+      setErrors({
+        name: !form.name ? "Title is required" : "",
+        slug: !form.slug ? "Slug is required" : "",
+        description: !form.description ? "Description is required" : "",
+      });
+      return;
+    }
+
+    if (form.categories.length === 0) {
+      setErrors({ categories: "Select at least one category" });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const token = localStorage.getItem("sanctumToken");
+      const formData = new FormData();
+      formData.append("name", form.name);
+      formData.append("slug", form.slug);
+      formData.append("description", form.description);
+      if (form.meta_group_id) formData.append("meta_group_id", form.meta_group_id);
+      if (form.image) formData.append("image", form.image);
+      form.categories.forEach((catId) => formData.append("categories[]", catId));
+
+      const response = await fetch(`${API_BASE_URL}/blog/posts`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        setErrors(errData.errors || { submit: "Failed to create post" });
+        return;
+      }
+
+      const result = await response.json();
+      onPostAdded(result.data || result);
+      setForm({
+        name: "",
+        slug: "",
+        description: "",
+        image: null,
+        meta_group_id: "",
+        categories: [],
+      });
+      setPreview(null);
+      alert("Post created successfully!");
+    } catch (error) {
+      console.error("Error creating post:", error);
+      setErrors({ submit: error.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="admin-form bg-white p-8 rounded-lg border border-borderc">
+      <h2 className="text-2xl font-bold mb-6">Add New Post</h2>
+      <form onSubmit={handleSubmit}>
+        <div className="grid grid-cols-2 gap-6 mb-6 md:grid-cols-1">
+          <Field
+            label="Title *"
+            name="name"
+            placeholder="Post title"
+            value={form.name}
+            onChange={(name, value) => handleChange({ target: { name, value } })}
+            error={errors.name}
+          />
+          <Field
+            label="Slug *"
+            name="slug"
+            placeholder="post-slug"
+            value={form.slug}
+            onChange={(name, value) => handleChange({ target: { name, value } })}
+            error={errors.slug}
+          />
+        </div>
+
+        <div className="mb-6">
+          <label className="field-group">
+            <span>Description (CKEditor) *</span>
+            <textarea
+              name="description"
+              placeholder="Write your post content here..."
+              value={form.description}
+              onChange={handleChange}
+              className="min-h-[200px]"
+            />
+            {errors.description && (
+              <small className="text-[0.8rem] font-medium text-[#d64545]">{errors.description}</small>
+            )}
+          </label>
+        </div>
+
+        <div className="grid grid-cols-2 gap-6 mb-6 md:grid-cols-1">
+          <div>
+            <label className="field-group">
+              <span>Featured Image</span>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/jpg"
+                onChange={handleImageChange}
+              />
+            </label>
+            {preview && (
+              <div className="mt-3">
+                <img
+                  src={preview}
+                  alt="Preview"
+                  className="max-w-full h-auto max-h-[150px] rounded"
+                />
+              </div>
+            )}
+          </div>
+
+          <div>
+            <Field
+              label="Meta Group ID (Optional)"
+              name="meta_group_id"
+              type="number"
+              placeholder="Leave blank if not applicable"
+              value={form.meta_group_id}
+              onChange={(name, value) => handleChange({ target: { name, value } })}
+              error={errors.meta_group_id}
+            />
+          </div>
+        </div>
+
+        <div className="mb-6">
+          <label className="block mb-2 font-medium">Categories *</label>
+          <div className="flex flex-wrap gap-3">
+            {categories.length === 0 ? (
+              <p className="text-muted text-sm">No categories available. Create one first.</p>
+            ) : (
+              categories.map((cat) => (
+                <label key={cat.id} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.categories.includes(cat.id)}
+                    onChange={() => toggleCategory(cat.id)}
+                  />
+                  <span className="text-sm">{cat.name}</span>
+                </label>
+              ))
+            )}
+          </div>
+          {errors.categories && (
+            <small className="text-[0.8rem] font-medium text-[#d64545] block mt-2">{errors.categories}</small>
+          )}
+        </div>
+
+        {errors.submit && <p className="text-[#d64545] text-sm mb-4">{errors.submit}</p>}
+        <button
+          type="submit"
+          disabled={loading}
+          className="btn-primary"
+        >
+          {loading ? "Creating..." : "Create Post"}
+        </button>
+      </form>
+    </div>
   );
 }
 
